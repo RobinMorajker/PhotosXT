@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhotoXT</string>
+
+    <string name="tab_pictures">Pictures</string>
+    <string name="tab_albums">Albums</string>
+    <string name="tab_shared">Shared</string>
+    <string name="tab_public">Public</string>
+    <string name="tab_library">Library</string>
+
+    <string name="title_shared">Shared Albums</string>
+    <string name="title_public">Public Albums</string>
+
+    <string name="empty_pictures_title">No pictures yet</string>
+    <string name="empty_pictures_body">Photos and videos on this phone and in your Google Drive folders will show up here.</string>
+    <string name="empty_albums_title">No albums yet</string>
+    <string name="empty_albums_body">Phone folders and the Google Drive folders you add become albums here.</string>
+    <string name="empty_shared_title">Nothing shared yet</string>
+    <string name="empty_shared_body">Albums shared with you, and albums you share, will appear here.</string>
+    <string name="empty_public_title">No public albums yet</string>
+    <string name="empty_public_body">Albums that people make public will appear here.</string>
+    <string name="empty_library_title">Your library is empty</string>
+    <string name="empty_library_body">Favorites, bookmarks, history, trash and more will live here.</string>
+</resources>
