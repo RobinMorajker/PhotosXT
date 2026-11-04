@@ -30,6 +30,8 @@ Durable facts and decisions that a future session would otherwise have to redisc
 ## Known limits
 - detekt 1.23.8, the latest stable, calls Gradle APIs that Gradle 10 removes. Move to detekt 2 once it is stable.
 - At 200% text on a 360 dp phone, bottom-bar labels wrap mid-word (Material 3 default). Revisit in the accessibility pass.
+- Screenshot goldens were recorded on Linux, as CI runs. If only screenshot tests fail on Windows with tiny text differences, trust CI or re-record on Linux.
+- Robin's test phone is a Galaxy A15 5G (SM-A156E), reachable from robin-laptop over wireless adb.
 - Git from a Cowork session: its device shell can't delete files, so git there leaves `.lock` files. Commit from Windows (Android Studio or git), or grant the session delete permission first.
 
 ## Where things live

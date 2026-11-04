@@ -25,9 +25,16 @@ Gradle catalog and convention plugins; modules `app`, `core/common`, `core/desig
 - The CI command (`./gradlew spotlessCheck detekt lintDebug testDebugUnitTest assembleDebug :baselineprofile:assemble`) passed, then passed again from a clean copy of the tracked files with the build cache off. 13 tests, 0 failures.
 - Screenshot tests passed twice in a row against the recorded images (no flakiness).
 
+## On a real phone (Galaxy A15 5G, SM-A156E, wireless adb from robin-laptop)
+- The debug APK installed and `MainActivity` started; logcat shows the first frame drawn, no crash, and the Baseline Profile installer running.
+- Logging check (spec §7): nothing PhotoXT logged contains a token, e-mail, file name or location. The only app-tagged output was StrictMode reports, routed through `PxtLog`; all of them come from Samsung's own `IdsController` reading preferences on the main thread, not from PhotoXT code.
+- The first frame of this cold debug start took about 2.1 s (JIT, debug build, phone locked). Not a measure of the §5.8 budget, which is for a release build with a Baseline Profile (checked in Phase 15).
+- Once Robin unlocked it, the app showed Pictures in the phone's dark theme: large title in the top 40%, empty state below, bottom bar with Pictures selected (screenshot over adb). The tab-state check needs taps, which adb from this session cannot make, so it was not repeated on the phone.
+- With 3-button navigation the system draws its contrast scrim under the bottom bar, a slightly darker band. Turning it off (`window.isNavigationBarContrastEnforced = false`) is a one-line polish for when `MainActivity` is next touched.
+
 ## Phase 0 "Done when"
 - CI is green: the identical command is green locally. The GitHub Actions run waits for a remote (see Next).
-- Launches to Pictures, and tabs keep their state: proven by `AppNavigationTest`. On-device check: see below.
+- Launches to Pictures, and tabs keep their state: proven by `AppNavigationTest` under Robolectric (Android 17). On the phone it opens on Pictures; checking tab state there by hand is left to Robin (see Next).
 - Each tab has a screenshot test: yes (`TabScreenshotTest`, one per tab).
 
 ## Skipped, and when to add
@@ -42,6 +49,7 @@ Gradle catalog and convention plugins; modules `app`, `core/common`, `core/desig
 - Touch clicks left ripples that made screenshots differ between runs; screenshot tests now click through semantics actions.
 
 ## Next
+- On the phone, open PhotoXT, drag Pictures up so its title shrinks, tap Albums, tap Pictures: the title should still be small.
 - Push to a private GitHub repo from Windows, so CI runs there:
   `git remote add origin https://github.com/<you>/PhotosXT.git` then `git push -u origin main`.
 - If the Projects folder is synced with Syncthing, ignore `build`, `.gradle` and `.kotlin` folders there (`.stignore`), or every build syncs hundreds of MB.

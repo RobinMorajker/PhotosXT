@@ -2,7 +2,7 @@
 
 **PhotoXT** is a native Android gallery (Kotlin + Jetpack Compose) built to beat Samsung Gallery. It adds selected Google Drive folders as streamed albums with on-device thumbnails and a 30-day download cache. It also covers editing, collages, casting to TVs, and albums that are private by default and can be shared or made public. **PhotoXTPro** is the same app plus public media boards (image, video and media boards that other users post to).
 
-**Status (2026-11-04):** Phase 0 (Foundation) of PhotoXT is built and its checks pass locally: the app opens on Pictures, has five tabs with One UI-style headers and empty states, and each tab keeps its state. Waiting on the first GitHub Actions run and a check on a real phone. Next step: Phase 1 (Device gallery).
+**Status (2026-11-04):** Phase 0 (Foundation) of PhotoXT is built and its checks pass locally: the app opens on Pictures, has five tabs with One UI-style headers and empty states, and each tab keeps its state. It installs and launches on a Galaxy A15. Waiting on the first GitHub Actions run. Next step: Phase 1 (Device gallery).
 
 | File | What it is |
 |---|---|
