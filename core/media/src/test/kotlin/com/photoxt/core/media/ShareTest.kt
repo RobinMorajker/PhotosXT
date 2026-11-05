@@ -1,4 +1,4 @@
-package com.photoxt.feature.timeline
+package com.photoxt.core.media
 
 import org.junit.Assert.assertEquals
 import org.junit.Test

@@ -14,14 +14,23 @@
         android:theme="@style/Theme.PhotoXT"
         tools:targetApi="33">
 
+        <!-- Picture-in-picture for the video player (spec §4.6). Size and orientation changes
+             reach Compose without recreating the activity, so video and PiP keep playing. -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|density"
+            android:exported="true"
+            android:supportsPictureInPicture="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The mini map's key; empty unless set at build time (see app/build.gradle.kts). -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${mapsApiKey}" />
 
     </application>
 

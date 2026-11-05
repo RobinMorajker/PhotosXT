@@ -15,6 +15,12 @@ android {
         applicationId = "com.photoxt.app"
         versionCode = 1
         versionName = "0.1.0"
+        // Google Maps key for the details sheet's mini map (spec §4.5). It stays out of git: set
+        // PHOTOXT_MAPS_API_KEY in ~/.gradle/gradle.properties or the environment. Without one,
+        // the sheet shows the coordinates and an "Open in Maps" button instead of the map.
+        manifestPlaceholders["mapsApiKey"] = providers.gradleProperty("PHOTOXT_MAPS_API_KEY")
+            .orElse(providers.environmentVariable("PHOTOXT_MAPS_API_KEY"))
+            .getOrElse("")
     }
     buildFeatures.buildConfig = true
     buildTypes {
@@ -37,9 +43,12 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:media"))
+    implementation(project(":core:model"))
     implementation(project(":core:ui"))
     implementation(project(":feature:albums"))
+    implementation(project(":feature:player"))
     implementation(project(":feature:timeline"))
+    implementation(project(":feature:viewer"))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3.navigationSuite)
@@ -48,6 +57,7 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.coil.compose)
+    implementation(libs.coil.gif)
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.serialization.core)
     ksp(libs.hilt.compiler)

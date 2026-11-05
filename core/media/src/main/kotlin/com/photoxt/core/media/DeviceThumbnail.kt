@@ -75,5 +75,8 @@ class DeviceThumbnailFetcher(private val data: DeviceThumbnail, private val opti
 
 class DeviceThumbnailKeyer : Keyer<DeviceThumbnail> {
     override fun key(data: DeviceThumbnail, options: Options) =
-        "${data.contentUri}@${data.modifiedAt}"
+        deviceThumbnailKey(data.contentUri, data.modifiedAt)
 }
+
+/** The memory-cache key of a device thumbnail, so other requests can show it as a placeholder. */
+fun deviceThumbnailKey(contentUri: String, modifiedAt: Long): String = "$contentUri@$modifiedAt"

@@ -100,6 +100,30 @@ class TimelineQueryTest {
         assertEquals("content://b", albums.first().coverUri)
     }
 
+    @Test
+    fun viewerItemsKeepTheGridOrderAndKnowTheirPosition() = runTest {
+        val all = MediaListQuery()
+        val page = media.viewerItems(all).load(
+            PagingSource.LoadParams.Refresh(key = null, loadSize = 100, placeholdersEnabled = false)
+        ) as PagingSource.LoadResult.Page
+        assertEquals(listOf("b", "a", "c", "d", "e"), page.data.map { it.id })
+
+        val c = checkNotNull(media.viewerItem("c"))
+        assertEquals(2, media.positionOf(all, c))
+        assertEquals(1, media.positionOf(MediaListQuery(MediaFilter.PHOTOS), c))
+        assertEquals(2, media.positionOf(MediaListQuery(albumId = "camera"), c))
+        assertEquals("external_primary:camera/", media.folderOf("c"))
+    }
+
+    @Test
+    fun aResumePointGoesWithItsItem() = runTest {
+        val playback = database.playbackDao()
+        playback.save(PlaybackPositionEntity("b", positionMs = 1_500, durationMs = 5_000, 1))
+        assertEquals(1_500L, playback.position("b")?.positionMs)
+        database.mediaIndexDao().deleteMedia(listOf("b"))
+        assertEquals(null, playback.position("b"))
+    }
+
     /** Header rows as their date ("2026-11-04", "2026-11", "2026"), item rows as their id. */
     private suspend fun rows(query: TimelineQuery): List<String> {
         val page = media.timeline(query).load(

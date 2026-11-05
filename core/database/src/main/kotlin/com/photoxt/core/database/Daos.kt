@@ -23,7 +23,34 @@ interface MediaDao {
     /** At most 999 ids per call (SQLite's variable limit on Android 11). */
     @Query("SELECT contentUri, mime FROM media WHERE id IN (:ids) AND contentUri IS NOT NULL")
     suspend fun shareTargets(ids: List<String>): List<ShareTarget>
+
+    @RawQuery(observedEntities = [MediaEntity::class])
+    fun viewerItemRows(query: SupportSQLiteQuery): PagingSource<Int, ViewerItem>
+
+    @RawQuery
+    suspend fun viewerItemList(query: SupportSQLiteQuery): List<ViewerItem>
+
+    @RawQuery
+    suspend fun count(query: SupportSQLiteQuery): Int
+
+    @Query("SELECT $VIEWER_COLUMNS FROM media WHERE id = :id")
+    suspend fun viewerItem(id: String): ViewerItem?
+
+    /** The folder an item is in, as `<volume>:<relative path>` (see [AlbumEntity.sourceRef]). */
+    @Query("SELECT a.sourceRef FROM album a JOIN media m ON m.albumId = a.id WHERE m.id = :id")
+    suspend fun folderOf(id: String): String?
 }
+
+fun MediaDao.viewerItems(query: MediaListQuery): PagingSource<Int, ViewerItem> =
+    viewerItemRows(query.items())
+
+/** Every item of [query] at once, for the slideshow's shuffle. */
+suspend fun MediaDao.allViewerItems(query: MediaListQuery): List<ViewerItem> =
+    viewerItemList(query.items())
+
+/** Where [item] sits among the items of [query], 0 being the newest. */
+suspend fun MediaDao.positionOf(query: MediaListQuery, item: ViewerItem): Int =
+    count(query.countBefore(item.takenAt, item.id))
 
 fun MediaDao.timeline(query: TimelineQuery): PagingSource<Int, TimelineRow> =
     timelineRows(query.rows())
@@ -66,6 +93,19 @@ interface MediaIndexDao {
 
     @Query("DELETE FROM media_store_cursor WHERE volume NOT IN (:volumes)")
     suspend fun deleteCursorsOutside(volumes: List<String>)
+}
+
+/** Resume points of videos (spec §4.6). */
+@Dao
+interface PlaybackDao {
+    @Query("SELECT * FROM playback_position WHERE mediaId = :mediaId")
+    suspend fun position(mediaId: String): PlaybackPositionEntity?
+
+    @Upsert
+    suspend fun save(position: PlaybackPositionEntity)
+
+    @Query("DELETE FROM playback_position WHERE mediaId = :mediaId")
+    suspend fun clear(mediaId: String)
 }
 
 @Dao

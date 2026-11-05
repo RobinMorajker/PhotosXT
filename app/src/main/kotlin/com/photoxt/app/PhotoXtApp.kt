@@ -1,5 +1,6 @@
 package com.photoxt.app
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,12 +14,14 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -27,15 +30,37 @@ import androidx.navigation3.ui.NavDisplay
 import com.photoxt.core.designsystem.PxtCollapsingHeader
 import com.photoxt.core.designsystem.PxtTheme
 import com.photoxt.core.ui.EmptyState
+import com.photoxt.core.ui.LocalMediaHero
+import com.photoxt.core.ui.MediaHeroState
 import com.photoxt.feature.albums.AlbumsScreen
 import com.photoxt.feature.timeline.AlbumScreen
 import com.photoxt.feature.timeline.PicturesScreen
+import com.photoxt.feature.timeline.TimelineNavigation
 import kotlinx.coroutines.launch
 
-/** App shell: bottom bar on phones, rail from 600 dp wide (spec §4.1), one back stack per tab. */
+/**
+ * App shell: bottom bar on phones, rail from 600 dp wide (spec §4.1), one back stack per tab, and
+ * full-screen destinations (viewer, player, slideshow, compare, 360°) over the tabs, so the grid
+ * a photo came from stays underneath for its flight back.
+ */
 @Composable
 fun PhotoXtApp(modifier: Modifier = Modifier) {
     val navigation = rememberNavigationState()
+    val hero = remember { MediaHeroState() }
+    CompositionLocalProvider(LocalMediaHero provides hero) {
+        Box(modifier.fillMaxSize()) {
+            Tabs(
+                navigation,
+                // Covered by a full-screen destination: out of TalkBack's reach.
+                if (navigation.overlayOpen) Modifier.clearAndSetSemantics {} else Modifier
+            )
+            Overlays(navigation)
+        }
+    }
+}
+
+@Composable
+private fun Tabs(navigation: NavigationState, modifier: Modifier = Modifier) {
     // While a grid is in multi-select, its action bar takes the navigation bar's place.
     val navigationSuite = rememberNavigationSuiteScaffoldState()
     val scope = rememberCoroutineScope()
@@ -76,11 +101,16 @@ private fun appEntries(
     navigation: NavigationState,
     onSelectionModeChange: (Boolean) -> Unit
 ): (NavKey) -> NavEntry<NavKey> = entryProvider {
+    val timelineNavigation = TimelineNavigation(
+        onOpen = { start -> navigation.openOverlay(ViewerKey(start)) },
+        onCompare = { first, second -> navigation.openOverlay(CompareKey(first, second)) }
+    )
     entry(TopLevelTab.Pictures) {
         PicturesScreen(
             title = stringResource(TopLevelTab.Pictures.title),
             empty = { TabEmptyState(TopLevelTab.Pictures) },
-            onSelectionModeChange = onSelectionModeChange
+            onSelectionModeChange = onSelectionModeChange,
+            navigation = timelineNavigation
         )
     }
     entry(TopLevelTab.Albums) {
@@ -96,7 +126,8 @@ private fun appEntries(
             title = key.title,
             empty = { TabEmptyState(TopLevelTab.Pictures) },
             onSelectionModeChange = onSelectionModeChange,
-            onBack = navigation::goBack
+            onBack = navigation::goBack,
+            navigation = timelineNavigation
         )
     }
     PlaceholderTabs.forEach { tab -> entry(tab) { TabScreen(tab) } }

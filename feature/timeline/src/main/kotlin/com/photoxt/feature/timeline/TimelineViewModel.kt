@@ -56,7 +56,7 @@ data class TimelineUiState(
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel(assistedFactory = TimelineViewModel.Factory::class)
 class TimelineViewModel @AssistedInject constructor(
-    @Assisted private val albumId: String?,
+    @Assisted val albumId: String?,
     private val mediaDao: MediaDao,
     private val mediaAccess: MediaAccessMonitor,
     private val deviceMediaSync: DeviceMediaSync,
@@ -138,6 +138,12 @@ class TimelineViewModel @AssistedInject constructor(
         }
     }
 
+    /** The two selected items for Compare, the newer first, or null unless exactly two. */
+    fun comparePair(): Pair<String, String>? {
+        val selected = selection.value.entries.sortedByDescending { it.value }
+        return if (selected.size == 2) selected[0].key to selected[1].key else null
+    }
+
     /** What to hand to the share sheet, or null when more than [MAX_SHARE] items are selected. */
     suspend fun shareTargets(): List<ShareTarget>? {
         val ids = selection.value.keys.toList()
@@ -165,18 +171,23 @@ class TimelineViewModel @AssistedInject constructor(
     }
 }
 
-private fun TimelineRow.toCell(): GridCell {
+internal fun TimelineRow.toCell(): GridCell {
     val itemId = id
     return if (isHeader || itemId == null) {
         GridCell.Header(groupKey)
     } else {
+        val sideways = rotation % HALF_TURN != 0
         GridCell.Item(
             id = itemId,
             thumbnail = contentUri?.let { DeviceThumbnail(it, modifiedAt) },
             isVideo = kind == MediaKind.VIDEO,
             durationMs = durationMs,
             favorite = favorite,
-            takenAt = takenAt
+            takenAt = takenAt,
+            width = if (sideways) height else width,
+            height = if (sideways) width else height
         )
     }
 }
+
+private const val HALF_TURN = 180

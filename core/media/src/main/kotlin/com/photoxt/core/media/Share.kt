@@ -1,4 +1,4 @@
-package com.photoxt.feature.timeline
+package com.photoxt.core.media
 
 import android.content.ClipData
 import android.content.Context
@@ -10,7 +10,7 @@ import com.photoxt.core.database.ShareTarget
  * Hands [items] to the system share sheet, with read access to each one. Sharing Drive items as
  * a thumbnail plus a link arrives with the sharing phase (spec §4.14, Phase 11).
  */
-internal fun Context.shareMedia(items: List<ShareTarget>) {
+fun Context.shareMedia(items: List<ShareTarget>) {
     if (items.isEmpty()) return
     val uris = items.map { it.contentUri.toUri() }
     val send = if (uris.size == 1) {

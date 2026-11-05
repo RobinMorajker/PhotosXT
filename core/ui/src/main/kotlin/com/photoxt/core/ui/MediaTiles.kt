@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -89,12 +90,16 @@ internal fun MediaTile(
     open: (() -> Unit)?
 ) {
     val context = LocalContext.current
+    val hero = LocalMediaHero.current
     val toggleLabel = stringResource(R.string.media_toggle_selection)
     val selectLabel = stringResource(R.string.media_select)
     Box(
         Modifier
             .aspectRatio(1f)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            // While this photo flies to or from the viewer, the tile shows only its background.
+            // Read in the draw phase, so a flight redraws tiles without recomposing them.
+            .drawWithContent { if (hero?.hiddenId != item.id) drawContent() }
             .semantics(mergeDescendants = true) {
                 contentDescription = describeMedia(context, item)
                 if (selecting) {

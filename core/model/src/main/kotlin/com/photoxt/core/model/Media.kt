@@ -63,3 +63,22 @@ enum class DateGrouping {
         fun monthKey(date: LocalDate): Int = date.year * MONTHS + date.monthValue - 1
     }
 }
+
+/**
+ * How the viewer fits a photo to the screen (spec §4.5). [STRETCH] fills the screen and ignores
+ * the aspect ratio on purpose; [ONE_TO_ONE] shows one image pixel per screen pixel. The viewer
+ * keeps the chosen mode for the session, and the slideshow uses it too.
+ */
+enum class DisplayMode { FIT, FILL, STRETCH, FIT_WIDTH, FIT_HEIGHT, ONE_TO_ONE }
+
+/**
+ * Where the viewer starts: the item [id] at [index] (0 = newest) among the items of one album, or
+ * of everything when [albumId] is null, under [filter]. The viewer pages through the same items
+ * in the same order as the grid it was opened from.
+ */
+data class ViewerStart(
+    val albumId: String?,
+    val filter: MediaFilter,
+    val index: Int,
+    val id: String
+)

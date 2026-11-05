@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="action_back">Back</string>
+    <string name="action_play">Play</string>
+    <string name="action_motion">Motion</string>
+    <string name="action_panorama">360°</string>
+    <string name="action_share">Share</string>
+    <string name="action_details">Details</string>
+    <string name="action_display_mode">Display mode</string>
+    <string name="action_zoom_lock">Zoom lock</string>
+    <string name="action_more">More options</string>
+    <string name="action_slideshow">Slideshow</string>
+    <string name="action_compare">Compare</string>
+    <string name="action_open_with">Open with</string>
+    <string name="action_set_as">Set as</string>
+    <string name="action_copy">Copy to clipboard</string>
+    <string name="copied">Copied</string>
+
+    <string name="mode_fit">Fit</string>
+    <string name="mode_fill">Fill</string>
+    <string name="mode_stretch">Stretch</string>
+    <string name="mode_fit_width">Fit width</string>
+    <string name="mode_fit_height">Fit height</string>
+    <string name="mode_one_to_one">1:1 pixels</string>
+
+    <string name="compare_side_by_side">Side by side</string>
+    <string name="compare_split">Split</string>
+
+    <string name="slideshow_close">Close slideshow</string>
+    <string name="slideshow_play">Play slideshow</string>
+    <string name="slideshow_pause">Pause slideshow</string>
+    <string name="slideshow_previous">Previous</string>
+    <string name="slideshow_next">Next</string>
+    <string name="slideshow_shuffle">Shuffle</string>
+    <string name="slideshow_loop">Loop</string>
+    <string name="slideshow_music">Music</string>
+    <string name="slideshow_fade">Fade</string>
+    <string name="slideshow_slide">Slide</string>
+    <string name="slideshow_ken_burns">Ken Burns</string>
+    <plurals name="slideshow_seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
+
+    <string name="panorama_description">360° photo. Drag to look around, pinch to zoom.</string>
+
+    <string name="describe_photo">Photo, %1$s</string>
+    <string name="describe_video">Video, %1$s</string>
+
+    <string name="details_resolution">%1$d × %2$d (%3$.1f MP)</string>
+    <string name="details_show_location">Show where this was taken</string>
+    <string name="details_open_in_maps">Open in Maps</string>
+</resources>

@@ -10,5 +10,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <!-- Android 14 and later: lets the user grant only the items they pick. -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <!-- Photo and video locations for the details sheet and Places (spec §4.3). -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
 
 </manifest>

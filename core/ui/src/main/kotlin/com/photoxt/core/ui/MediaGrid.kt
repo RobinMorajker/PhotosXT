@@ -55,6 +55,7 @@ import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
@@ -97,7 +98,10 @@ sealed interface GridCell {
         val isVideo: Boolean,
         val durationMs: Long?,
         val favorite: Boolean,
-        val takenAt: Long
+        val takenAt: Long,
+        /** Pixel size as displayed (rotation applied), or 0 when unknown. */
+        val width: Int = 0,
+        val height: Int = 0
     ) : GridCell {
         override val key: Any get() = id
     }
@@ -134,7 +138,9 @@ enum class GridDensity(val grouping: DateGrouping, val columns: Int) {
  *
  * [rows] come from a timeline query (each header followed by its items) and [layout] from the
  * same query's group counts. [selection] maps selected ids to their capture times. Taps open an
- * item through [onOpen], or toggle it while selecting.
+ * item through [onOpen] with its position among items only, or toggle it while selecting. With a
+ * [heroSourceKey], the grid tells the viewer where each tile is, so photos fly between them (see
+ * [MediaHeroState]).
  */
 @Composable
 fun MediaGrid(
@@ -148,18 +154,17 @@ fun MediaGrid(
     modifier: Modifier = Modifier,
     state: LazyGridState = rememberLazyGridState(),
     contentPadding: PaddingValues = PaddingValues(),
-    onOpen: ((GridCell.Item) -> Unit)? = null,
+    onOpen: ((GridCell.Item, ordinal: Int) -> Unit)? = null,
+    heroSourceKey: String? = null,
     leading: (@Composable () -> Unit)? = null
 ) {
     val leadingCount = if (leading != null) 1 else 0
     val onPinch = rememberDensityPinch(state, rows, layout, density, leadingCount, onDensityChange)
+    val (tiles, open) = rememberHeroTiles(state, layout, leadingCount, heroSourceKey, onOpen)
     val gestures =
-        rememberGridGestures(state, rows, leadingCount, selection, onSelectionChange, onOpen)
+        rememberGridGestures(state, rows, leadingCount, selection, onSelectionChange, open)
     val labels = rememberDateGroupLabels(density.grouping)
-    val selectedPerGroup = remember(selection, density.grouping) {
-        val zone = ZoneId.systemDefault()
-        selection.values.groupingBy { density.grouping.keyOf(it, zone) }.eachCount()
-    }
+    val selectedPerGroup = rememberSelectedPerGroup(selection, density.grouping)
     BoxWithConstraints(modifier) {
         // Wider windows keep a phone's tile size by multiplying the columns.
         val columns = density.columns * (maxWidth / PhoneWidth).toInt().coerceAtLeast(1)
@@ -173,6 +178,7 @@ fun MediaGrid(
             modifier = Modifier
                 .fillMaxSize()
                 .testTag(MEDIA_GRID_TEST_TAG)
+                .onPlaced { tiles.coordinates = it }
                 .pinchToZoom(onPinch)
                 .pointerInput(gestures) { gestures.detect(this) }
         ) {
@@ -193,6 +199,7 @@ fun MediaGrid(
             ) { row ->
                 GridRow(
                     cell = rows[row],
+                    row = row,
                     headerRow = layout.isHeader(row),
                     label = labels,
                     density = density,
@@ -202,16 +209,27 @@ fun MediaGrid(
                     },
                     gestures = gestures,
                     onSelectGroup = onSelectGroup,
-                    onOpen = onOpen
+                    onOpen = open
                 )
             }
         }
     }
 }
 
+/** How many items of each date group are selected, for the groups' select-all marks. */
+@Composable
+private fun rememberSelectedPerGroup(
+    selection: Map<String, Long>,
+    grouping: DateGrouping
+): Map<Int, Int> = remember(selection, grouping) {
+    val zone = ZoneId.systemDefault()
+    selection.values.groupingBy { grouping.keyOf(it, zone) }.eachCount()
+}
+
 @Composable
 private fun GridRow(
     cell: GridCell?,
+    row: Int,
     headerRow: Boolean,
     label: (Int) -> String,
     density: GridDensity,
@@ -219,7 +237,7 @@ private fun GridRow(
     groupComplete: (Int) -> Boolean,
     gestures: GridGestures,
     onSelectGroup: (groupKey: Int, select: Boolean) -> Unit,
-    onOpen: ((GridCell.Item) -> Unit)?
+    onOpen: ((GridCell.Item, row: Int) -> Unit)?
 ) {
     when (cell) {
         is GridCell.Header -> GroupHeader(
@@ -234,9 +252,9 @@ private fun GridRow(
             compact = density.compact,
             selecting = selection.isNotEmpty(),
             selected = cell.id in selection,
-            onTap = { gestures.onTap(cell) },
+            onTap = { gestures.onTap(cell, row) },
             onSelect = { gestures.onSelectionChange(selection.toggled(cell)) },
-            open = onOpen?.let { { it(cell) } }
+            open = onOpen?.let { { it(cell, row) } }
         )
 
         null -> RowPlaceholder(header = headerRow)
@@ -286,7 +304,7 @@ private fun rememberGridGestures(
     leadingCount: Int,
     selection: Map<String, Long>,
     onSelectionChange: (Map<String, Long>) -> Unit,
-    onOpen: ((GridCell.Item) -> Unit)?
+    onOpen: ((GridCell.Item, row: Int) -> Unit)?
 ): GridGestures {
     val haptics = LocalHapticFeedback.current
     val gestures = remember(state) { GridGestures(state, haptics) }
@@ -295,10 +313,10 @@ private fun rememberGridGestures(
         gestures.rows = rows
         gestures.selection = selection
         gestures.onSelectionChange = onSelectionChange
-        gestures.onTap = { item ->
+        gestures.onTap = { item, row ->
             when {
                 selection.isNotEmpty() -> onSelectionChange(selection.toggled(item))
-                onOpen != null -> onOpen(item)
+                onOpen != null -> onOpen(item, row)
             }
         }
     }
@@ -398,7 +416,7 @@ private class GridGestures(private val state: LazyGridState, private val haptics
     var rows: LazyPagingItems<GridCell>? = null
     var selection: Map<String, Long> = emptyMap()
     var onSelectionChange: (Map<String, Long>) -> Unit = {}
-    var onTap: (GridCell.Item) -> Unit = {}
+    var onTap: (GridCell.Item, row: Int) -> Unit = { _, _ -> }
 
     var autoScrollSpeed by mutableFloatStateOf(0f)
         private set
@@ -420,7 +438,9 @@ private class GridGestures(private val state: LazyGridState, private val haptics
                 // select-all) took it, the grid scrolled, or the touch only stopped a fling.
                 val up = currentEvent.changes.firstOrNull { it.id == down.id }
                 if (!wasScrolling && up.isUntakenRelease()) {
-                    up?.let { itemAt(it.position) }?.let(onTap)
+                    val row = up?.let { rowAt(it.position) }
+                    val item = row?.let { rows?.peek(it) } as? GridCell.Item
+                    if (row != null && item != null) onTap(item, row)
                 }
             } else if (start(longPress.position)) {
                 val completed = drag(longPress.id) { change ->
@@ -463,9 +483,6 @@ private class GridGestures(private val state: LazyGridState, private val haptics
         lastRow = row
         onSelectionChange(rangeSelection(base, anchorRow, row, adding) { items.peek(it) })
     }
-
-    private fun itemAt(position: Offset): GridCell.Item? =
-        rowAt(position)?.let { rows?.peek(it) as? GridCell.Item }
 
     private fun rowAt(position: Offset): Int? {
         val x = position.x.toInt()

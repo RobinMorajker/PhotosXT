@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="player_back">Back</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_back_10">Back 10 seconds</string>
+    <string name="player_forward_10">Forward 10 seconds</string>
+    <string name="player_skipped_back">−10 s</string>
+    <string name="player_skipped_forward">+10 s</string>
+    <string name="player_speed">Playback speed</string>
+    <string name="player_speed_value">%1$s×</string>
+    <string name="player_aspect">Aspect</string>
+    <string name="player_loop">Loop</string>
+    <string name="player_rotation_lock">Rotation lock</string>
+    <string name="player_pip">Picture-in-picture</string>
+    <string name="player_subtitles">Subtitles</string>
+    <string name="player_audio_track">Audio track</string>
+    <string name="player_track">Track %1$d</string>
+    <string name="player_percent">%1$d%%</string>
+    <string name="player_resumed">Resumed at %1$s</string>
+    <string name="player_start_over">Start over</string>
+
+    <string name="aspect_fit">Fit</string>
+    <string name="aspect_fill">Fill</string>
+    <string name="aspect_stretch">Stretch</string>
+    <string name="aspect_16_9">16:9</string>
+    <string name="aspect_4_3">4:3</string>
+</resources>

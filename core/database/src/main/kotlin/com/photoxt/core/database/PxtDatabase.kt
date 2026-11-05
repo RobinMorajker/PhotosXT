@@ -1,6 +1,7 @@
 package com.photoxt.core.database
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -16,8 +17,15 @@ import javax.inject.Singleton
  * bump [version] and ship with a migration and a migration test (spec §5.4).
  */
 @Database(
-    entities = [AlbumEntity::class, MediaEntity::class, MediaStoreCursorEntity::class],
-    version = 1
+    entities = [
+        AlbumEntity::class,
+        MediaEntity::class,
+        MediaStoreCursorEntity::class,
+        PlaybackPositionEntity::class
+    ],
+    version = 2,
+    // 2 (Phase 2): video resume points.
+    autoMigrations = [AutoMigration(from = 1, to = 2)]
 )
 abstract class PxtDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
@@ -25,6 +33,8 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun mediaIndexDao(): MediaIndexDao
 
     abstract fun albumDao(): AlbumDao
+
+    abstract fun playbackDao(): PlaybackDao
 }
 
 @Module
@@ -43,4 +53,7 @@ object DatabaseModule {
 
     @Provides
     fun albumDao(database: PxtDatabase): AlbumDao = database.albumDao()
+
+    @Provides
+    fun playbackDao(database: PxtDatabase): PlaybackDao = database.playbackDao()
 }

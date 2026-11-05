@@ -9,6 +9,9 @@ naming:
     ignoreAnnotated: ['Composable']
 
 style:
+  # Early `?: return null` guards are how Kotlin parsers read; they do not count.
+  ReturnCount:
+    excludeGuardClauses: true
   MagicNumber:
     ignorePropertyDeclaration: true
     # Enum entries name their own constructor arguments.

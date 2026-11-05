@@ -98,11 +98,12 @@ internal fun BackButton(onClick: () -> Unit) {
 }
 
 /**
- * The selection's action bar, in place of the navigation bar (spec §4.1). Cut, Copy, Add to album,
- * Favorite and Delete join it with the phases that build them (5 and 6).
+ * The selection's action bar, in place of the navigation bar (spec §4.1). [onCompare] is set when
+ * exactly two items are selected. Cut, Copy, Add to album, Favorite and Delete join it with the
+ * phases that build them (5 and 6).
  */
 @Composable
-internal fun SelectionActions(onShare: () -> Unit) {
+internal fun SelectionActions(onShare: () -> Unit, onCompare: (() -> Unit)? = null) {
     Surface(tonalElevation = 3.dp) {
         Row(
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -112,6 +113,13 @@ internal fun SelectionActions(onShare: () -> Unit) {
                 .padding(vertical = 8.dp)
         ) {
             ActionButton(DesignR.drawable.ic_share, stringResource(R.string.action_share), onShare)
+            if (onCompare != null) {
+                ActionButton(
+                    DesignR.drawable.ic_compare,
+                    stringResource(R.string.action_compare),
+                    onCompare
+                )
+            }
         }
     }
 }

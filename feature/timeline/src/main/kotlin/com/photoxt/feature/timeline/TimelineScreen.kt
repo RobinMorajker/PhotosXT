@@ -47,16 +47,25 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.photoxt.core.designsystem.PxtCollapsingHeader
 import com.photoxt.core.designsystem.R as DesignR
+import com.photoxt.core.media.shareMedia
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
+import com.photoxt.core.model.ViewerStart
 import com.photoxt.core.ui.FastScroller
 import com.photoxt.core.ui.GridCell
 import com.photoxt.core.ui.GridDensity
 import com.photoxt.core.ui.LimitedAccessBanner
 import com.photoxt.core.ui.MediaAccessRequest
 import com.photoxt.core.ui.MediaGrid
+import com.photoxt.core.ui.heroSourceKey
 import com.photoxt.core.ui.rememberDateGroupLabels
 import kotlinx.coroutines.launch
+
+/** Where a timeline sends the user: the viewer, or Compare for two selected items. */
+class TimelineNavigation(
+    val onOpen: (ViewerStart) -> Unit = {},
+    val onCompare: (firstId: String, secondId: String) -> Unit = { _, _ -> }
+)
 
 /**
  * The Pictures tab: every photo and video. [empty] shows when there is nothing to show yet.
@@ -68,10 +77,11 @@ fun PicturesScreen(
     title: String,
     empty: @Composable () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navigation: TimelineNavigation = TimelineNavigation()
 ) {
     val viewModel = hiltViewModel<TimelineViewModel, TimelineViewModel.Factory> { it.create(null) }
-    TimelineScreen(viewModel, title, empty, onSelectionModeChange, onBack = null, modifier)
+    TimelineScreen(viewModel, title, empty, onSelectionModeChange, null, navigation, modifier)
 }
 
 /** One album's photos and videos, with a back button. */
@@ -82,12 +92,13 @@ fun AlbumScreen(
     empty: @Composable () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navigation: TimelineNavigation = TimelineNavigation()
 ) {
     val viewModel = hiltViewModel<TimelineViewModel, TimelineViewModel.Factory>(key = albumId) {
         it.create(albumId)
     }
-    TimelineScreen(viewModel, title, empty, onSelectionModeChange, onBack, modifier)
+    TimelineScreen(viewModel, title, empty, onSelectionModeChange, onBack, navigation, modifier)
 }
 
 @Composable
@@ -97,6 +108,7 @@ private fun TimelineScreen(
     empty: @Composable () -> Unit,
     onSelectionModeChange: (Boolean) -> Unit,
     onBack: (() -> Unit)?,
+    navigation: TimelineNavigation,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -134,22 +146,36 @@ private fun TimelineScreen(
                         context.shareMedia(targets)
                     }
                 }
+            },
+            onOpen = { item, index ->
+                navigation.onOpen(ViewerStart(viewModel.albumId, state.filter, index, item.id))
+            },
+            onCompare = {
+                viewModel.comparePair()?.let { (newer, older) ->
+                    viewModel.clearSelection()
+                    navigation.onCompare(newer, older)
+                }
             }
         ),
         empty = empty,
         modifier = modifier,
-        onBack = onBack
+        onBack = onBack,
+        heroSourceKey = heroSourceKey(viewModel.albumId, state.filter)
     )
 }
 
 /** Everything a timeline screen can be asked to do. */
-class TimelineCallbacks(
+data class TimelineCallbacks(
     val onAccessResult: () -> Unit = {},
     val onFilterChange: (MediaFilter) -> Unit = {},
     val onDensityChange: (GridDensity) -> Unit = {},
     val onSelectionChange: (Map<String, Long>) -> Unit = {},
     val onSelectGroup: (groupKey: Int, select: Boolean) -> Unit = { _, _ -> },
-    val onShare: () -> Unit = {}
+    val onShare: () -> Unit = {},
+    /** Opens an item, given with its position among items only. */
+    val onOpen: (GridCell.Item, index: Int) -> Unit = { _, _ -> },
+    /** Compares the two selected items. */
+    val onCompare: () -> Unit = {}
 )
 
 /** The timeline screen without its ViewModel, for previews and screenshot tests. */
@@ -163,7 +189,8 @@ fun TimelineContent(
     callbacks: TimelineCallbacks,
     empty: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    onBack: (() -> Unit)? = null
+    onBack: (() -> Unit)? = null,
+    heroSourceKey: String? = null
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState()
@@ -193,8 +220,21 @@ fun TimelineContent(
         if (state.access == MediaAccess.DENIED) {
             MediaAccessRequest(permissions, callbacks.onAccessResult, Modifier.weight(1f))
         } else {
-            TimelineGrid(state, rows, permissions, callbacks, empty, Modifier.weight(1f))
-            if (selected > 0) SelectionActions(onShare = callbacks.onShare)
+            TimelineGrid(
+                state,
+                rows,
+                permissions,
+                callbacks,
+                empty,
+                heroSourceKey,
+                Modifier.weight(1f)
+            )
+            if (selected > 0) {
+                SelectionActions(
+                    onShare = callbacks.onShare,
+                    onCompare = callbacks.onCompare.takeIf { selected == 2 }
+                )
+            }
         }
     }
 }
@@ -206,6 +246,7 @@ private fun TimelineGrid(
     permissions: Array<String>,
     callbacks: TimelineCallbacks,
     empty: @Composable () -> Unit,
+    heroSourceKey: String?,
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
@@ -222,6 +263,8 @@ private fun TimelineGrid(
             onSelectGroup = callbacks.onSelectGroup,
             state = gridState,
             modifier = Modifier.fillMaxSize(),
+            onOpen = callbacks.onOpen,
+            heroSourceKey = heroSourceKey,
             leading = {
                 Column {
                     if (state.access == MediaAccess.LIMITED) {

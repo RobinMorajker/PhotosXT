@@ -74,7 +74,32 @@ data class MediaStoreCursorEntity(
     val zone: String
 )
 
-/** A row of the paged timeline: a date header ([isHeader], no [id]) or an item. */
+/**
+ * Where playback of a video stopped (spec §4.6, continuity), so it resumes there. It goes with its
+ * item: removing the item removes it. Phase 6 folds it into the viewing history.
+ */
+@Entity(
+    tableName = "playback_position",
+    foreignKeys = [
+        ForeignKey(
+            entity = MediaEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["mediaId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class PlaybackPositionEntity(
+    @PrimaryKey val mediaId: String,
+    val positionMs: Long,
+    val durationMs: Long,
+    val updatedAt: Long
+)
+
+/**
+ * A row of the paged timeline: a date header ([isHeader], no [id]) or an item. [width] and
+ * [height] are the stored pixel size before [rotation] is applied.
+ */
 data class TimelineRow(
     val isHeader: Boolean,
     val groupKey: Int,
@@ -84,7 +109,28 @@ data class TimelineRow(
     val durationMs: Long?,
     val favorite: Boolean,
     val modifiedAt: Long,
-    val takenAt: Long
+    val takenAt: Long,
+    val width: Int,
+    val height: Int,
+    val rotation: Int
+)
+
+/** One photo or video as the viewer shows it, in the order of the grid it was opened from. */
+data class ViewerItem(
+    val id: String,
+    val contentUri: String?,
+    val albumId: String,
+    val name: String,
+    val mime: String,
+    val kind: MediaKind,
+    val bytes: Long,
+    val width: Int,
+    val height: Int,
+    val rotation: Int,
+    val durationMs: Long?,
+    val takenAt: Long,
+    val modifiedAt: Long,
+    val favorite: Boolean
 )
 
 /** How many items one date group holds. */

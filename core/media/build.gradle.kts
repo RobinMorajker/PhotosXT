@@ -11,6 +11,7 @@ dependencies {
     api(project(":core:database"))
     implementation(project(":core:common"))
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.coil.core)
 

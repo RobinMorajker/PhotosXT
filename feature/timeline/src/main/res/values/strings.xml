@@ -13,6 +13,7 @@
     </plurals>
 
     <string name="action_share">Share</string>
+    <string name="action_compare">Compare</string>
     <string name="action_cancel_selection">Cancel selection</string>
     <string name="action_back">Back</string>
     <plurals name="share_too_many">

@@ -2,7 +2,7 @@
 
 **PhotoXT** is a native Android gallery (Kotlin + Jetpack Compose) built to beat Samsung Gallery. It adds selected Google Drive folders as streamed albums with on-device thumbnails and a 30-day download cache. It also covers editing, collages, casting to TVs, and albums that are private by default and can be shared or made public. **PhotoXTPro** is the same app plus public media boards (image, video and media boards that other users post to).
 
-**Status (2026-11-05):** Phase 1 (Device gallery) of PhotoXT is built and its checks pass locally. Pictures shows every photo and video on the phone by date, with pinch to change density, a fast scroller, filters, and multi-select with drag-select and share; Albums lists the phone's folders; full, limited and denied access all work. On a Galaxy A15 with 23,781 items, a new camera photo appears within 2 s, a photo deleted elsewhere is gone on resume, and scrolling stays smooth. Committed locally; CI runs on GitHub once it is pushed. Next step: Phase 2 (Viewer and player).
+**Status (2026-11-05):** Phase 2 (Viewer and player) of PhotoXT is built and its checks pass locally (61 tests, no Lint or detekt findings). Tapping a photo opens it out of its tile into a viewer with zoom up to 4× beyond 1:1, double-tap Fit → Fill → 1:1, six display modes including Stretch, zoom lock, Compare and a details sheet; swipe down flies it back. Motion photos, Ultra HDR, GIF/WebP and 360° photos play, there is a slideshow, and videos open in a Media3 player with gestures, speed, picture-in-picture, subtitles and resume. The four "Done when" checks on the Galaxy A15 are still to run: the phone dropped off wireless adb. Committed locally; CI runs on GitHub once it is pushed. Next step: the Phase 2 phone checks, then Phase 3 (Google account and Drive albums).
 
 | File | What it is |
 |---|---|
@@ -23,5 +23,9 @@ Needs JDK 17 or newer and the Android SDK (Android Studio has both). One command
 ```
 
 On Windows use `gradlew.bat`. `./gradlew spotlessApply` fixes formatting, `./gradlew recordRoborazziDebug` re-records the screenshot tests after an intended UI change, and `./gradlew installDebug` puts the app on a connected phone.
+
+### Maps API key (optional)
+
+The viewer's details sheet draws a small map of where a photo was taken. That needs a Google Maps SDK for Android key. Without one the app still builds and runs, and the sheet shows the coordinates with an *Open in Maps* button instead. To add a key, keep it out of git: put `PHOTOXT_MAPS_API_KEY=<your key>` in `~/.gradle/gradle.properties` (on Windows `%USERPROFILE%\.gradle\gradle.properties`), or set an environment variable of that name, then rebuild. Restrict the key in Google Cloud to Android apps with package `com.photoxt.app` and your signing certificate's SHA-1.
 
 Shared workspace rules live in the Projects hub: [README](../../../README.md) · [AGENTS](../../../AGENTS.md) · [conventions](../../../conventions.md) · [skills](../../../skills.md). Parent project: [Android](../README.md).

@@ -5,6 +5,7 @@ import android.os.StrictMode
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
+import coil3.gif.AnimatedImageDecoder
 import coil3.request.allowHardware
 import com.photoxt.core.common.PxtLog
 import com.photoxt.core.media.DeviceMediaSync
@@ -39,6 +40,8 @@ class PhotoXtApplication :
             .components {
                 add(DeviceThumbnailKeyer())
                 add(DeviceThumbnailFetcher.Factory())
+                // Animated GIF, WebP and HEIF in the viewer (spec §4.5); stills decode as before.
+                add(AnimatedImageDecoder.Factory())
             }
             .build()
 

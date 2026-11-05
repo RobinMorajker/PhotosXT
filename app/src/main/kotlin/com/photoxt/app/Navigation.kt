@@ -17,6 +17,9 @@ import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import com.photoxt.core.designsystem.R as DesignR
+import com.photoxt.core.media.Panorama
+import com.photoxt.core.model.MediaFilter
+import com.photoxt.core.model.ViewerStart
 import kotlinx.serialization.Serializable
 
 /** The five bottom-navigation tabs (spec §4.1). Each is also the root key of its back stack. */
@@ -72,6 +75,54 @@ enum class TopLevelTab(
 @Serializable
 data class AlbumKey(val albumId: String, val title: String) : NavKey
 
+// Full-screen destinations shown over the tabs, so the grid stays underneath (spec §4.5): the
+// viewer flies back into it, and closing any of them returns to exactly where the user was.
+
+/** The viewer over one grid's items, starting at item [id], the [index]th of them. */
+@Serializable
+data class ViewerKey(
+    val albumId: String?,
+    val filter: MediaFilter,
+    val index: Int,
+    val id: String
+) : NavKey {
+    constructor(start: ViewerStart) : this(start.albumId, start.filter, start.index, start.id)
+
+    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id)
+}
+
+@Serializable
+data class PlayerKey(val mediaId: String) : NavKey
+
+@Serializable
+data class SlideshowKey(
+    val albumId: String?,
+    val filter: MediaFilter,
+    val index: Int,
+    val id: String
+) : NavKey {
+    constructor(start: ViewerStart) : this(start.albumId, start.filter, start.index, start.id)
+
+    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id)
+}
+
+@Serializable
+data class CompareKey(val firstId: String, val secondId: String) : NavKey
+
+@Serializable
+data class PanoramaKey(
+    val contentUri: String,
+    val left: Float,
+    val top: Float,
+    val width: Float,
+    val height: Float
+) : NavKey {
+    constructor(contentUri: String, crop: Panorama) :
+        this(contentUri, crop.left, crop.top, crop.width, crop.height)
+
+    val crop: Panorama get() = Panorama(left, top, width, height)
+}
+
 private val StartTab = TopLevelTab.Pictures
 
 /**
@@ -82,7 +133,8 @@ private val StartTab = TopLevelTab.Pictures
  */
 class NavigationState internal constructor(
     currentTab: MutableState<TopLevelTab>,
-    private val backStacks: Map<TopLevelTab, NavBackStack<NavKey>>
+    private val backStacks: Map<TopLevelTab, NavBackStack<NavKey>>,
+    private val overlays: NavBackStack<NavKey>
 ) {
     var currentTab: TopLevelTab by currentTab
         private set
@@ -100,6 +152,32 @@ class NavigationState internal constructor(
         val stack = backStacks.getValue(currentTab)
         if (stack.size > 1) stack.removeAt(stack.lastIndex) else currentTab = StartTab
     }
+
+    /** Whether a full-screen destination covers the tabs. */
+    val overlayOpen: Boolean get() = overlays.isNotEmpty()
+
+    /** Shows [key] full screen, over the tabs and any other full-screen destination. */
+    fun openOverlay(key: NavKey) {
+        overlays.add(key)
+    }
+
+    /** Removes [key], normally the topmost full-screen destination. */
+    fun closeOverlay(key: NavKey) {
+        val index = overlays.lastIndexOf(key)
+        if (index >= 0) overlays.removeAt(index)
+    }
+
+    /** The full-screen destinations, bottom first, each with its own state and ViewModels. */
+    @Composable
+    fun overlayEntries(entryProvider: (NavKey) -> NavEntry<NavKey>): List<NavEntry<NavKey>> =
+        rememberDecoratedNavEntries(
+            backStack = overlays,
+            entryDecorators = listOf(
+                rememberSaveableStateHolderNavEntryDecorator(),
+                rememberViewModelStoreNavEntryDecorator()
+            ),
+            entryProvider = entryProvider
+        )
 
     /** The entries to display: Pictures' stack, then the current tab's stack on top of it. */
     @Composable
@@ -125,5 +203,6 @@ class NavigationState internal constructor(
 fun rememberNavigationState(): NavigationState {
     val currentTab = rememberSaveable { mutableStateOf(StartTab) }
     val backStacks = TopLevelTab.entries.associateWith { rememberNavBackStack(it) }
-    return remember { NavigationState(currentTab, backStacks) }
+    val overlays = rememberNavBackStack()
+    return remember { NavigationState(currentTab, backStacks, overlays) }
 }

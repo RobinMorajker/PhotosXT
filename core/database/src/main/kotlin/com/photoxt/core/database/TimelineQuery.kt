@@ -23,31 +23,21 @@ data class TimelineQuery(
         DateGrouping.YEAR -> "(monthKey / 12)"
     }
 
-    private val conditions = listOfNotNull(
-        when (filter) {
-            MediaFilter.ALL -> null
-            MediaFilter.PHOTOS -> "kind = 'IMAGE'"
-            MediaFilter.VIDEOS -> "kind = 'VIDEO'"
-            MediaFilter.FAVORITES -> "favorite = 1"
-        },
-        albumId?.let { "albumId = ?" }
-    )
+    private val list = MediaListQuery(filter, albumId)
+    private val args: List<Any> get() = list.args
 
-    private val args: List<Any> = listOfNotNull(albumId)
-
-    private fun where(vararg extra: String): String {
-        val all = conditions + extra
-        return if (all.isEmpty()) "" else "WHERE " + all.joinToString(" AND ")
-    }
+    private fun where(vararg extra: String): String = list.where(*extra)
 
     /** Headers and items, newest group first, each header right before its items. */
     internal fun rows(): SupportSQLiteQuery = SimpleSQLiteQuery(
         """
         SELECT 1 AS isHeader, $groupKey AS groupKey, NULL AS id, NULL AS contentUri, NULL AS kind,
-            NULL AS durationMs, 0 AS favorite, 0 AS modifiedAt, MAX(takenAt) AS takenAt
+            NULL AS durationMs, 0 AS favorite, 0 AS modifiedAt, MAX(takenAt) AS takenAt,
+            0 AS width, 0 AS height, 0 AS rotation
         FROM media ${where()} GROUP BY $groupKey
         UNION ALL
-        SELECT 0, $groupKey, id, contentUri, kind, durationMs, favorite, modifiedAt, takenAt
+        SELECT 0, $groupKey, id, contentUri, kind, durationMs, favorite, modifiedAt, takenAt,
+            width, height, rotation
         FROM media ${where()}
         ORDER BY groupKey DESC, isHeader DESC, takenAt DESC, id DESC
         """.trimIndent(),
@@ -67,3 +57,42 @@ data class TimelineQuery(
         (args + key).toTypedArray()
     )
 }
+
+/**
+ * The items of one timeline (all media, or one album) under a filter, without date headers: what
+ * the viewer pages through. Items come newest first, in exactly the order of the grid's items,
+ * because every grouping key rises with the capture time it is computed from.
+ */
+data class MediaListQuery(val filter: MediaFilter = MediaFilter.ALL, val albumId: String? = null) {
+    private val conditions = listOfNotNull(
+        when (filter) {
+            MediaFilter.ALL -> null
+            MediaFilter.PHOTOS -> "kind = 'IMAGE'"
+            MediaFilter.VIDEOS -> "kind = 'VIDEO'"
+            MediaFilter.FAVORITES -> "favorite = 1"
+        },
+        albumId?.let { "albumId = ?" }
+    )
+
+    internal val args: List<Any> = listOfNotNull(albumId)
+
+    internal fun where(vararg extra: String): String {
+        val all = conditions + extra
+        return if (all.isEmpty()) "" else "WHERE " + all.joinToString(" AND ")
+    }
+
+    /** Every item, newest first. */
+    internal fun items(): SupportSQLiteQuery = SimpleSQLiteQuery(
+        "SELECT $VIEWER_COLUMNS FROM media ${where()} ORDER BY takenAt DESC, id DESC",
+        args.toTypedArray()
+    )
+
+    /** How many items come before the item captured at [takenAt] with [id]: its position. */
+    internal fun countBefore(takenAt: Long, id: String): SupportSQLiteQuery = SimpleSQLiteQuery(
+        "SELECT COUNT(*) FROM media ${where("(takenAt > ? OR (takenAt = ? AND id > ?))")}",
+        (args + takenAt + takenAt + id).toTypedArray()
+    )
+}
+
+internal const val VIEWER_COLUMNS = "id, contentUri, albumId, name, mime, kind, bytes, width, " +
+    "height, rotation, durationMs, takenAt, modifiedAt, favorite"
