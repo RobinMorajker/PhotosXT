@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
@@ -67,6 +68,10 @@ enum class TopLevelTab(
     )
 }
 
+/** One album, opened from the Albums tab on top of its back stack. */
+@Serializable
+data class AlbumKey(val albumId: String, val title: String) : NavKey
+
 private val StartTab = TopLevelTab.Pictures
 
 /**
@@ -86,6 +91,11 @@ class NavigationState internal constructor(
         currentTab = tab
     }
 
+    /** Opens [key] on top of the current tab's stack. */
+    fun open(key: NavKey) {
+        backStacks.getValue(currentTab).add(key)
+    }
+
     fun goBack() {
         val stack = backStacks.getValue(currentTab)
         if (stack.size > 1) stack.removeAt(stack.lastIndex) else currentTab = StartTab
@@ -94,13 +104,15 @@ class NavigationState internal constructor(
     /** The entries to display: Pictures' stack, then the current tab's stack on top of it. */
     @Composable
     fun entries(entryProvider: (NavKey) -> NavEntry<NavKey>): List<NavEntry<NavKey>> {
-        // Each stack gets its own saveable-state decorator, so state outlives the tab being hidden.
-        // myopt: no ViewModel decorator yet. Add rememberViewModelStoreNavEntryDecorator() here
-        // with the first ViewModel (Phase 1), so ViewModels are scoped per entry, not per activity.
+        // Each stack gets its own saveable-state and ViewModel decorators, so state and
+        // ViewModels belong to one entry and outlive its tab being hidden.
         val decorated = backStacks.mapValues { (_, stack) ->
             rememberDecoratedNavEntries(
                 backStack = stack,
-                entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
+                entryDecorators = listOf(
+                    rememberSaveableStateHolderNavEntryDecorator(),
+                    rememberViewModelStoreNavEntryDecorator()
+                ),
                 entryProvider = entryProvider
             )
         }

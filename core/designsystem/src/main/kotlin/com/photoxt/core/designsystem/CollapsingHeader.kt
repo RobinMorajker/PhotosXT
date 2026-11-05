@@ -1,6 +1,8 @@
 package com.photoxt.core.designsystem
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -31,6 +34,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
 import kotlin.math.roundToInt
+
+/** Test tag of every [PxtCollapsingHeader]. */
+const val PXT_HEADER_TEST_TAG = "header"
 
 private val CollapsedHeight = 64.dp
 private val MinWindowHeightToExpand = 480.dp
@@ -45,13 +51,18 @@ private const val TITLE_SWAP_FRACTION = 0.5f
  * Pair it with [androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior] and
  * put that behaviour's nested-scroll connection on the screen. The behaviour's state is saveable,
  * so the collapse position survives tab switches and configuration changes.
+ *
+ * [navigationIcon] and [actions] sit in a toolbar row along the header's bottom edge, which also
+ * holds the small title once the header has collapsed.
  */
 @ExperimentalMaterial3Api
 @Composable
 fun PxtCollapsingHeader(
     title: String,
     scrollBehavior: TopAppBarScrollBehavior,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    navigationIcon: (@Composable () -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {}
 ) {
     val expandedHeight = expandedHeight()
     val canExpand = expandedHeight > CollapsedHeight
@@ -65,6 +76,7 @@ fun PxtCollapsingHeader(
 
     Box(
         modifier
+            .testTag(PXT_HEADER_TEST_TAG)
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.statusBars)
             .layout { measurable, constraints ->
@@ -89,28 +101,55 @@ fun PxtCollapsingHeader(
                     .graphicsLayer { alpha = 1f - state.collapsedFraction * 2f }
                     .semantics { heading() }
             )
-        } else {
-            Box(
-                contentAlignment = Alignment.CenterStart,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .height(CollapsedHeight)
-                    .padding(horizontal = 24.dp)
-            ) {
+        }
+        HeaderToolbar(
+            title = title,
+            showTitle = !showLargeTitle,
+            titleAlpha = { if (canExpand) state.collapsedFraction * 2f - 1f else 1f },
+            navigationIcon = navigationIcon,
+            actions = actions,
+            modifier = Modifier.align(Alignment.BottomStart)
+        )
+    }
+}
+
+/** The bottom row: navigation icon, the small title once collapsed, and the actions. */
+@Composable
+private fun HeaderToolbar(
+    title: String,
+    showTitle: Boolean,
+    titleAlpha: () -> Float,
+    navigationIcon: (@Composable () -> Unit)?,
+    actions: @Composable RowScope.() -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(CollapsedHeight)
+            .padding(horizontal = 4.dp)
+    ) {
+        navigationIcon?.invoke()
+        Box(
+            contentAlignment = Alignment.CenterStart,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = if (navigationIcon == null) 20.dp else 4.dp, end = 20.dp)
+        ) {
+            if (showTitle) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .graphicsLayer {
-                            alpha =
-                                if (canExpand) state.collapsedFraction * 2f - 1f else 1f
-                        }
+                        .graphicsLayer { alpha = titleAlpha() }
                         .semantics { heading() }
                 )
             }
         }
+        actions()
     }
 }
 

@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.photoxt.core.designsystem.PXT_HEADER_TEST_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -32,7 +33,8 @@ class AppNavigationTest {
     private fun tab(tab: TopLevelTab): SemanticsNodeInteraction =
         compose.onNode(hasText(compose.activity.getString(tab.label)) and isSelectable())
 
-    private fun headerHeight(): Dp = compose.onNodeWithTag(HEADER_TEST_TAG).getBoundsInRoot().height
+    private fun headerHeight(): Dp =
+        compose.onNodeWithTag(PXT_HEADER_TEST_TAG).getBoundsInRoot().height
 
     @Test
     fun launchesToPicturesAndEachTabKeepsItsState() {

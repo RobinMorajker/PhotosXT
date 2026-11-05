@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="album_camera">Camera</string>
+    <string name="album_screenshots">Screenshots</string>
+    <string name="album_downloads">Downloads</string>
+    <!-- Photos saved directly in the phone's top-level storage folder. -->
+    <string name="album_phone_storage">Phone storage</string>
+
+    <plurals name="album_item_count">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+</resources>

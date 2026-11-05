@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_all">All</string>
+    <string name="filter_photos">Photos</string>
+    <string name="filter_videos">Videos</string>
+    <string name="filter_favorites">Favorites</string>
+    <string name="filter_empty_title">Nothing here</string>
+    <string name="filter_empty_body">No photos or videos match this filter.</string>
+
+    <plurals name="selected_count">
+        <item quantity="one">%1$,d selected</item>
+        <item quantity="other">%1$,d selected</item>
+    </plurals>
+
+    <string name="action_share">Share</string>
+    <string name="action_cancel_selection">Cancel selection</string>
+    <string name="action_back">Back</string>
+    <plurals name="share_too_many">
+        <item quantity="one">Share up to %1$,d item at a time.</item>
+        <item quantity="other">Share up to %1$,d items at a time.</item>
+    </plurals>
+</resources>

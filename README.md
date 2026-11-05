@@ -2,7 +2,7 @@
 
 **PhotoXT** is a native Android gallery (Kotlin + Jetpack Compose) built to beat Samsung Gallery. It adds selected Google Drive folders as streamed albums with on-device thumbnails and a 30-day download cache. It also covers editing, collages, casting to TVs, and albums that are private by default and can be shared or made public. **PhotoXTPro** is the same app plus public media boards (image, video and media boards that other users post to).
 
-**Status (2026-11-04):** Phase 0 (Foundation) of PhotoXT is built and its checks pass locally: the app opens on Pictures, has five tabs with One UI-style headers and empty states, and each tab keeps its state. It installs and launches on a Galaxy A15. Waiting on the first GitHub Actions run. Next step: Phase 1 (Device gallery).
+**Status (2026-11-05):** Phase 1 (Device gallery) of PhotoXT is built and its checks pass locally. Pictures shows every photo and video on the phone by date, with pinch to change density, a fast scroller, filters, and multi-select with drag-select and share; Albums lists the phone's folders; full, limited and denied access all work. On a Galaxy A15 with 23,781 items, a new camera photo appears within 2 s, a photo deleted elsewhere is gone on resume, and scrolling stays smooth. Committed locally; CI runs on GitHub once it is pushed. Next step: Phase 2 (Viewer and player).
 
 | File | What it is |
 |---|---|
@@ -11,7 +11,7 @@
 | [AGENTS.md](AGENTS.md) | Entry point for any AI agent working in this folder |
 | [memory.md](memory.md) | Durable decisions and facts for this project |
 | [.session/](.session/) | One log file per working session |
-| `app/`, `core/`, `baselineprofile/`, `build-logic/` | The Android project (one Gradle build; open this folder in Android Studio) |
+| `app/`, `core/`, `feature/`, `baselineprofile/`, `build-logic/` | The Android project (one Gradle build; open this folder in Android Studio) |
 | [.github/workflows/ci.yml](.github/workflows/ci.yml) | CI: the same checks as below, on every push to `main` |
 
 ## Build and check

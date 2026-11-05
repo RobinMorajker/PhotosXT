@@ -54,6 +54,20 @@ class AndroidComposeConventionPlugin : Plugin<Project> {
     }
 }
 
+/** `photoxt.android.hilt`: Hilt and KSP, for a module with injected classes or Hilt modules. */
+class AndroidHiltConventionPlugin : Plugin<Project> {
+    override fun apply(target: Project) = with(target) {
+        pluginManager.apply("com.google.devtools.ksp")
+        pluginManager.apply("com.google.dagger.hilt.android")
+        dependencies {
+            "implementation"(libs.findLibrary("hilt-android").get())
+            "ksp"(libs.findLibrary("hilt-compiler").get())
+            // Lets Hilt read metadata written by this Kotlin version.
+            "ksp"(libs.findLibrary("kotlin-metadata").get())
+        }
+    }
+}
+
 private fun Project.configureAndroid(android: CommonExtension) {
     android.apply {
         compileSdk = sdk("compileSdk")

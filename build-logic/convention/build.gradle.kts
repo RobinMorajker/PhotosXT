@@ -24,5 +24,9 @@ gradlePlugin {
             id = libs.plugins.photoxt.android.compose.get().pluginId
             implementationClass = "AndroidComposeConventionPlugin"
         }
+        register("androidHilt") {
+            id = libs.plugins.photoxt.android.hilt.get().pluginId
+            implementationClass = "AndroidHiltConventionPlugin"
+        }
     }
 }

@@ -1,4 +1,9 @@
 # Overrides on top of detekt's default rules (buildUponDefaultConfig = true).
+complexity:
+  # Compose components take flat parameter lists (Compose API guidelines).
+  LongParameterList:
+    ignoreAnnotated: ['Composable']
+
 naming:
   FunctionNaming:
     ignoreAnnotated: ['Composable']
@@ -6,5 +11,7 @@ naming:
 style:
   MagicNumber:
     ignorePropertyDeclaration: true
+    # Enum entries name their own constructor arguments.
+    ignoreEnums: true
   UnusedPrivateMember:
     ignoreAnnotated: ['Preview', 'PreviewLightDark']

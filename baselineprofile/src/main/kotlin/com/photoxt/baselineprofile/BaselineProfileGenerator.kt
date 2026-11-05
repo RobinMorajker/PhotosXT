@@ -6,7 +6,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Records the code path of a cold start. Extend the journey as screens with real content land. */
+/** Records the code paths of a cold start and of scrolling Pictures. */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {
     @get:Rule
@@ -14,9 +14,9 @@ class BaselineProfileGenerator {
 
     @Test
     fun generate() = rule.collect(packageName = TARGET_PACKAGE) {
+        grantMediaAccess()
         pressHome()
         startActivityAndWait()
+        flingPictures(times = 3)
     }
 }
-
-const val TARGET_PACKAGE = "com.photoxt.app"

@@ -36,13 +36,18 @@ android {
 dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:media"))
     implementation(project(":core:ui"))
+    implementation(project(":feature:albums"))
+    implementation(project(":feature:timeline"))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3.navigationSuite)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.profileinstaller)
+    implementation(libs.coil.compose)
     implementation(libs.hilt.android)
     implementation(libs.kotlinx.serialization.core)
     ksp(libs.hilt.compiler)

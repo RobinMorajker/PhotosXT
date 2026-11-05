@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="date_today">Today</string>
+    <string name="date_yesterday">Yesterday</string>
+
+    <!-- TalkBack descriptions of grid tiles. %1$s is when the item was taken; for a video, %1$s is its length and %2$s when it was taken. -->
+    <string name="media_photo">Photo, %1$s</string>
+    <string name="media_video">Video, %1$s, %2$s</string>
+    <string name="media_select">Select</string>
+    <string name="media_toggle_selection">Select or unselect</string>
+
+    <string name="fast_scroll">Fast scroll</string>
+
+    <string name="access_title">See your photos and videos</string>
+    <string name="access_body">PhotoXT shows the photos and videos on this phone. They stay on your device.</string>
+    <string name="access_body_blocked">Access is turned off. In Settings, open Permissions and allow Photos and videos.</string>
+    <string name="access_allow">Allow access</string>
+    <string name="access_settings">Open settings</string>
+    <string name="access_limited">PhotoXT can see only the photos and videos you picked.</string>
+    <string name="access_limited_manage">Manage</string>
+    <string name="access_limited_allow_all">Allow all</string>
+</resources>
