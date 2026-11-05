@@ -27,7 +27,8 @@ import kotlinx.coroutines.launch
 internal class ViewerTransition(private val hero: MediaHeroState?) {
     enum class Phase { OPENING, SHOWN, CLOSING }
 
-    var phase by mutableStateOf(Phase.SHOWN)
+    /** Opening until [open] runs, so nothing of the viewer shows before its photo flies in. */
+    var phase by mutableStateOf(Phase.OPENING)
         private set
 
     /** What the flying photo shows; stretched photos fly stretched, all others cropped. */
@@ -37,7 +38,7 @@ internal class ViewerTransition(private val hero: MediaHeroState?) {
         private set
 
     private val flight = Animatable(Rect.Zero, Rect.VectorConverter)
-    private val fade = Animatable(1f)
+    private val fade = Animatable(0f)
     private val heroFade = Animatable(1f)
 
     // A gesture moves the photo by [drag] and shrinks it with [progress], starting from [rest].
@@ -58,6 +59,7 @@ internal class ViewerTransition(private val hero: MediaHeroState?) {
     /** Flies [model] from the tapped tile to [target]; without a tile the viewer fades in. */
     suspend fun open(from: HeroLaunch?, target: Rect, model: Any?, stretch: Boolean) {
         if (from == null || target.isEmpty) {
+            phase = Phase.SHOWN
             fade.snapTo(0f)
             fade.animateTo(1f, tween(FADE_MS))
             return

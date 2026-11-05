@@ -6,7 +6,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Records the code paths of a cold start and of scrolling Pictures. */
+/** Records the code paths of a cold start, scrolling Pictures, and opening and zooming a photo. */
 @RunWith(AndroidJUnit4::class)
 class BaselineProfileGenerator {
     @get:Rule
@@ -18,5 +18,7 @@ class BaselineProfileGenerator {
         pressHome()
         startActivityAndWait()
         flingPictures(times = 3)
+        openNewestPhoto()
+        zoomToPixelsAndPan()
     }
 }

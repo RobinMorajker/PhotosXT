@@ -182,7 +182,9 @@ private fun ViewerBody(parts: ViewerParts, close: () -> Unit, navigation: Viewer
     val current = parts.items.peekOrNull(parts.pager.currentPage)
     val traits = current?.let { viewModel.traitsOf(it).collectAsStateWithLifecycle().value }
     HdrWindowEffect(traits?.ultraHdr == true && !transition.flying)
-    ImmersiveEffect(barsVisible = ui.chrome && !transition.flying)
+    // The system bars follow the viewer's own bars only: hiding them for a flight would move
+    // the grid underneath while it shows through.
+    ImmersiveEffect(barsVisible = ui.chrome)
     ViewerPages(parts, ui, close, navigation)
     AnimatedVisibility(
         visible = ui.chrome && !transition.flying,
@@ -248,7 +250,7 @@ private fun ViewerPages(
             .fillMaxSize()
             .graphicsLayer { alpha = if (transition.flying) 0f else 1f }
     ) { page ->
-        val item = parts.items[page] ?: return@HorizontalPager
+        val item = parts.items.getOrNull(page) ?: return@HorizontalPager
         val handle = rememberPageHandle(parts.frame, page)
         val actions = PageActions(
             onTap = { ui.chrome = !ui.chrome },
@@ -359,6 +361,13 @@ private fun rememberPageHandle(frame: ViewerFrame, page: Int): PageHandle {
 
 internal fun <T : Any> LazyPagingItems<T>.peekOrNull(index: Int): T? =
     if (index in 0 until itemCount) peek(index) else null
+
+/**
+ * The item at [index], asking Paging to load around it; null outside the loaded list. The pager
+ * has the start page before the first page loads, and Paging throws for an index past its end.
+ */
+internal fun <T : Any> LazyPagingItems<T>.getOrNull(index: Int): T? =
+    if (index in 0 until itemCount) get(index) else null
 
 internal fun Size.toIntSize() = IntSize(width.roundToInt(), height.roundToInt())
 

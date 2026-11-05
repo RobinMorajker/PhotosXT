@@ -50,7 +50,7 @@ internal fun ZoomLockEffect(lock: ZoomLock?, state: ZoomableState, current: Bool
                 val base = state.contentTransformation.scaleMetadata.initialScale.let {
                     maxOf(it.scaleX, it.scaleY)
                 }
-                val size = state.contentSize()
+                val size = state.unscaledContentSize()
                 val spot = Offset(centre.x * size.width, centre.y * size.height)
                 state.zoomTo(
                     zoomFactor = base * zoom,
@@ -64,15 +64,10 @@ internal fun ZoomLockEffect(lock: ZoomLock?, state: ZoomableState, current: Bool
     }
 }
 
-@OptIn(ExperimentalTelephotoApi::class)
-private fun ZoomableState.contentSize() = with(coordinateSystem) {
-    unscaledContentBounds(clipToViewport = false).rectIn(CoordinateSpace.ZoomableContent).size
-}
-
 /** The image point at the centre of the screen, as fractions of the image's size. */
 @OptIn(ExperimentalTelephotoApi::class)
 private fun ZoomableState.centreFraction(): Offset = with(coordinateSystem) {
-    val size = contentSize()
+    val size = unscaledContentSize()
     if (size.isEmpty()) return Offset(HALF, HALF)
     val viewportCentre = Offset(viewportSize.width / 2f, viewportSize.height / 2f)
     val spot = SpatialOffset(viewportCentre, CoordinateSpace.Viewport)

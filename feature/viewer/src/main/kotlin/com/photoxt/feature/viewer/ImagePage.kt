@@ -84,6 +84,9 @@ internal fun ImagePage(
             .onSizeChanged { pageSize = it.toSize() }
     ) {
         ZoomableAsyncImage(
+            // ponytail: software tiles; on a 200 MP photo each 2040 × 1530 tile uploads for
+            // 10–18 ms on the render thread (ZoomBenchmark), but hardware tiles measured no better
+            // on the A15. Smaller tiles or upload pacing in the Phase 15 performance pass.
             model = remember(item.id, item.modifiedAt) { fullImageRequest(context, item) },
             contentDescription = null,
             state = imageState,

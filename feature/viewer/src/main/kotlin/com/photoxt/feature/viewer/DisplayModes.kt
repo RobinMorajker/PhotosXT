@@ -8,7 +8,7 @@ import androidx.compose.ui.layout.ContentScale
 import com.photoxt.core.model.DisplayMode
 import me.saket.telephoto.ExperimentalTelephotoApi
 import me.saket.telephoto.zoomable.DoubleClickToZoomListener
-import me.saket.telephoto.zoomable.ZoomableContent
+import me.saket.telephoto.zoomable.Viewport
 import me.saket.telephoto.zoomable.ZoomableState
 import me.saket.telephoto.zoomable.spatial.CoordinateSpace
 
@@ -64,14 +64,8 @@ internal fun nextDoubleTapZoom(
 internal object CycleFitFillPixels : DoubleClickToZoomListener {
     override suspend fun onDoubleClick(state: ZoomableState, centroid: Offset) {
         val transformation = state.contentTransformation
-        if (!transformation.isSpecified) return
-        val coordinates = state.coordinateSystem
-        val viewport = coordinates.viewportSize
-        val content = with(coordinates) {
-            unscaledContentBounds(
-                clipToViewport = false
-            ).rectIn(CoordinateSpace.ZoomableContent).size
-        }
+        val viewport = state.coordinateSystem.viewportSize
+        val content = state.unscaledContentSize()
         if (content.isEmpty() || viewport.isEmpty()) return
         val fit = minOf(viewport.width / content.width, viewport.height / content.height)
         val fill = maxOf(viewport.width / content.width, viewport.height / content.height)
@@ -85,6 +79,22 @@ internal object CycleFitFillPixels : DoubleClickToZoomListener {
         )
         if (next == null) state.resetZoom() else state.zoomTo(next, centroid)
     }
+}
+
+/**
+ * The photo's own size in its pixels, which every zoom here is relative to: its bounds on screen
+ * before any zoom, over the zoom that fits it there. (Converting those bounds into content
+ * coordinates instead would divide by the current zoom, so every double tap would step up again.)
+ * Zero until the photo is laid out.
+ */
+@OptIn(ExperimentalTelephotoApi::class)
+internal fun ZoomableState.unscaledContentSize(): Size {
+    val base = contentTransformation.takeIf { it.isSpecified }?.scaleMetadata?.initialScale
+    if (base == null || base.scaleX <= 0f || base.scaleY <= 0f) return Size.Zero
+    val shown = with(coordinateSystem) {
+        unscaledContentBounds(clipToViewport = false).rectIn(CoordinateSpace.Viewport).size
+    }
+    return Size(shown.width / base.scaleX, shown.height / base.scaleY)
 }
 
 /** How far a photo zooms: four times beyond one image pixel per screen pixel (spec §4.5). */

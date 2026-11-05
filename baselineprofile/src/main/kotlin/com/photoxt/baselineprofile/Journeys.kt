@@ -36,13 +36,17 @@ fun MacrobenchmarkScope.flingPictures(times: Int) {
     repeat(times) { grid.fling(Direction.UP) }
 }
 
-/** Opens [album] from the Albums tab, then its newest photo in the viewer. */
-fun MacrobenchmarkScope.openNewestPhoto(album: String) {
-    check(device.wait(Until.hasObject(By.text("Albums")), WAIT_MS)) { "Tabs not shown" }
-    // The tab, not a header that may show the same word.
-    device.findObjects(By.text("Albums")).maxBy { it.visibleBounds.top }.click()
-    UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text(album))
-    device.findObject(By.text(album)).click()
+/** Opens the newest photo of [album] (from the Albums tab), or of Pictures, in the viewer. */
+fun MacrobenchmarkScope.openNewestPhoto(album: String? = null) {
+    if (album != null) {
+        check(device.wait(Until.hasObject(By.text("Albums")), WAIT_MS)) { "Tabs not shown" }
+        // The tab, not a header that may show the same word.
+        device.findObjects(By.text("Albums")).maxBy { it.visibleBounds.top }.click()
+        // An album tile reads "<name>, <count> items".
+        UiScrollable(UiSelector().scrollable(true))
+            .scrollIntoView(UiSelector().descriptionStartsWith("$album,"))
+        device.findObject(By.descStartsWith("$album,")).click()
+    }
     check(device.wait(Until.hasObject(By.descStartsWith("Photo")), WAIT_MS)) { "No photo" }
     device.findObjects(By.descStartsWith("Photo"))
         .minWith(compareBy({ it.visibleBounds.top }, { it.visibleBounds.left }))
