@@ -33,6 +33,7 @@ import com.photoxt.core.ui.EmptyState
 import com.photoxt.core.ui.LocalMediaHero
 import com.photoxt.core.ui.MediaHeroState
 import com.photoxt.feature.albums.AlbumsScreen
+import com.photoxt.feature.albums.DriveBrowserScreen
 import com.photoxt.feature.timeline.AlbumScreen
 import com.photoxt.feature.timeline.PicturesScreen
 import com.photoxt.feature.timeline.TimelineNavigation
@@ -103,7 +104,8 @@ private fun appEntries(
 ): (NavKey) -> NavEntry<NavKey> = entryProvider {
     val timelineNavigation = TimelineNavigation(
         onOpen = { start -> navigation.openOverlay(ViewerKey(start)) },
-        onCompare = { first, second -> navigation.openOverlay(CompareKey(first, second)) }
+        onCompare = { first, second -> navigation.openOverlay(CompareKey(first, second)) },
+        onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) }
     )
     entry(TopLevelTab.Pictures) {
         PicturesScreen(
@@ -117,7 +119,18 @@ private fun appEntries(
         AlbumsScreen(
             title = stringResource(TopLevelTab.Albums.title),
             empty = { TabEmptyState(TopLevelTab.Albums) },
-            onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) }
+            onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) },
+            onBrowseDrive = { accountId -> navigation.open(DriveBrowserKey(accountId)) }
+        )
+    }
+    entry<DriveBrowserKey> { key ->
+        DriveBrowserScreen(
+            accountId = key.accountId,
+            onBack = navigation::goBack,
+            onAdded = { id, title ->
+                navigation.goBack()
+                navigation.open(AlbumKey(id, title))
+            }
         )
     }
     entry<AlbumKey> { key ->

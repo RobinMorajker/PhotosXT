@@ -2,6 +2,7 @@ package com.photoxt.feature.timeline
 
 import com.photoxt.core.database.TimelineRow
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.SourceType
 import com.photoxt.core.ui.GridCell
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -28,6 +29,8 @@ class TimelineCellTest {
         takenAt = 1,
         width = 4080,
         height = 3060,
-        rotation = rotation
+        rotation = rotation,
+        source = SourceType.DEVICE,
+        remoteVersion = null
     )
 }

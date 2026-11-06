@@ -31,7 +31,11 @@ import com.photoxt.core.model.MediaFilter
 // The pieces a timeline screen is built from.
 
 @Composable
-internal fun FilterChips(selected: MediaFilter, onSelect: (MediaFilter) -> Unit) {
+internal fun FilterChips(
+    selected: MediaFilter,
+    onSelect: (MediaFilter) -> Unit,
+    filters: List<MediaFilter> = MediaFilter.entries
+) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier
@@ -39,7 +43,7 @@ internal fun FilterChips(selected: MediaFilter, onSelect: (MediaFilter) -> Unit)
             .horizontalScroll(rememberScrollState())
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
-        MediaFilter.entries.forEach { filter ->
+        filters.forEach { filter ->
             FilterChip(
                 selected = filter == selected,
                 onClick = { onSelect(filter) },
@@ -55,6 +59,8 @@ private val MediaFilter.label: Int
         MediaFilter.PHOTOS -> R.string.filter_photos
         MediaFilter.VIDEOS -> R.string.filter_videos
         MediaFilter.FAVORITES -> R.string.filter_favorites
+        MediaFilter.DEVICE -> R.string.filter_device
+        MediaFilter.DRIVE -> R.string.filter_drive
     }
 
 @Composable

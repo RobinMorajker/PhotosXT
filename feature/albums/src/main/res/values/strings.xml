@@ -6,6 +6,43 @@
     <!-- Photos saved directly in the phone's top-level storage folder. -->
     <string name="album_phone_storage">Phone storage</string>
 
+    <!-- Google accounts and Drive albums (spec §4.2). -->
+    <string name="action_add_drive_folder">Add Drive folder</string>
+    <string name="action_accounts">Google accounts</string>
+    <string name="accounts_title">Google accounts</string>
+    <string name="accounts_pick_title">Add a folder from</string>
+    <string name="accounts_empty">No Google account yet. Add one to see your Drive folders as albums.</string>
+    <string name="action_add_account">Add Google account</string>
+    <string name="action_remove_account">Remove %1$s</string>
+    <string name="action_reconnect">Reconnect</string>
+    <string name="remove_account_title">Remove this account?</string>
+    <string name="remove_account_body">%1$s and its Drive albums leave PhotoXT, with their thumbnails and downloaded copies. Nothing changes in Google Drive.</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="sign_in_not_configured">Google sign-in is not set up in this build.</string>
+    <string name="sign_in_failed">Could not sign in to Google. Try again.</string>
+    <string name="reconnect_banner">Google Drive needs your permission again for %1$s.</string>
+    <string name="drive_status_syncing">Syncing…</string>
+    <string name="drive_status_attention">Needs attention</string>
+    <string name="drive_status_offline">Offline</string>
+    <string name="drive_badge">Google Drive</string>
+
+    <!-- The in-app Drive folder browser. -->
+    <string name="browser_title">Add Drive folder</string>
+    <string name="browser_my_drive">My Drive</string>
+    <string name="browser_shared_with_me">Shared with me</string>
+    <string name="browser_shared_drives">Shared drives</string>
+    <string name="browser_starred">Starred</string>
+    <string name="browser_search">Search folders</string>
+    <string name="browser_empty">No folders here.</string>
+    <string name="browser_consent">PhotoXT needs permission to see your Drive.</string>
+    <string name="browser_error">Could not reach Google Drive.</string>
+    <string name="action_allow">Allow</string>
+    <string name="action_retry">Try again</string>
+    <string name="browser_merge">Merge subfolders into one album</string>
+    <string name="browser_add_folder">Add “%1$s”</string>
+    <string name="browser_pick_folder">Open a folder to add it</string>
+
     <plurals name="album_item_count">
         <item quantity="one">%1$,d item</item>
         <item quantity="other">%1$,d items</item>

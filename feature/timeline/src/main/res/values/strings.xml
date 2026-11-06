@@ -4,6 +4,17 @@
     <string name="filter_photos">Photos</string>
     <string name="filter_videos">Videos</string>
     <string name="filter_favorites">Favorites</string>
+    <string name="filter_device">On this phone</string>
+    <string name="filter_drive">Drive</string>
+    <string name="action_more">More options</string>
+    <string name="action_merge_subfolders">Merge subfolders into this album</string>
+    <string name="action_remove_drive_folder">Remove from PhotoXT</string>
+    <string name="remove_drive_folder_title">Remove this Drive album?</string>
+    <string name="remove_drive_folder_body">Its photos and videos leave PhotoXT, with their thumbnails and downloaded copies. Nothing changes in Google Drive.</string>
+    <string name="action_remove">Remove</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="drive_syncing">Adding from Google Drive…</string>
+    <string name="drive_needs_consent">Google Drive needs your permission again. Reconnect it from the Albums tab.</string>
     <string name="filter_empty_title">Nothing here</string>
     <string name="filter_empty_body">No photos or videos match this filter.</string>
 
@@ -16,6 +27,10 @@
     <string name="action_compare">Compare</string>
     <string name="action_cancel_selection">Cancel selection</string>
     <string name="action_back">Back</string>
+    <plurals name="album_item_count">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
     <plurals name="share_too_many">
         <item quantity="one">Share up to %1$,d item at a time.</item>
         <item quantity="other">Share up to %1$,d items at a time.</item>

@@ -1,4 +1,5 @@
-// The Albums tab: one tile per album. Opening an album shows feature/timeline's album grid.
+// The Albums tab: one tile per album, Google accounts, and the in-app Drive folder browser that
+// turns Drive folders into albums. Opening an album shows feature/timeline's album grid.
 plugins {
     alias(libs.plugins.photoxt.android.library)
     alias(libs.plugins.photoxt.android.compose)
@@ -10,9 +11,12 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:media"))
+    implementation(project(":core:sync"))
     implementation(project(":core:ui"))
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

@@ -61,10 +61,14 @@ import com.photoxt.core.ui.heroSourceKey
 import com.photoxt.core.ui.rememberDateGroupLabels
 import kotlinx.coroutines.launch
 
-/** Where a timeline sends the user: the viewer, or Compare for two selected items. */
+/**
+ * Where a timeline sends the user: the viewer, Compare for two selected items, or a nested Drive
+ * album.
+ */
 class TimelineNavigation(
     val onOpen: (ViewerStart) -> Unit = {},
-    val onCompare: (firstId: String, secondId: String) -> Unit = { _, _ -> }
+    val onCompare: (firstId: String, secondId: String) -> Unit = { _, _ -> },
+    val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> }
 )
 
 /**
@@ -84,7 +88,10 @@ fun PicturesScreen(
     TimelineScreen(viewModel, title, empty, onSelectionModeChange, null, navigation, modifier)
 }
 
-/** One album's photos and videos, with a back button. */
+/**
+ * One album's photos and videos, with a back button. A Drive album also shows its subfolders as
+ * nested albums ([onOpenAlbum]) and, for a tracked folder, merging and removal.
+ */
 @Composable
 fun AlbumScreen(
     albumId: String,
@@ -113,12 +120,7 @@ private fun TimelineScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val rows = viewModel.rows.collectAsLazyPagingItems()
-    val context = LocalContext.current
-    val tooManyToShare = pluralStringResource(
-        R.plurals.share_too_many,
-        TimelineViewModel.MAX_SHARE,
-        TimelineViewModel.MAX_SHARE
-    )
+    val share = rememberShare(viewModel)
     val scope = rememberCoroutineScope()
     val selecting = state.selection.isNotEmpty()
     val reportSelectionMode by rememberUpdatedState(onSelectionModeChange)
@@ -137,16 +139,7 @@ private fun TimelineScreen(
             onDensityChange = viewModel::setDensity,
             onSelectionChange = viewModel::setSelection,
             onSelectGroup = viewModel::selectGroup,
-            onShare = {
-                scope.launch {
-                    val targets = viewModel.shareTargets()
-                    if (targets == null) {
-                        Toast.makeText(context, tooManyToShare, Toast.LENGTH_SHORT).show()
-                    } else {
-                        context.shareMedia(targets)
-                    }
-                }
-            },
+            onShare = share,
             onOpen = { item, index ->
                 navigation.onOpen(ViewerStart(viewModel.albumId, state.filter, index, item.id))
             },
@@ -155,6 +148,14 @@ private fun TimelineScreen(
                     viewModel.clearSelection()
                     navigation.onCompare(newer, older)
                 }
+            },
+            onOpenAlbum = navigation.onOpenAlbum,
+            onMerge = viewModel::setMerge,
+            onRemoveDriveFolder = {
+                scope.launch {
+                    viewModel.removeDriveFolder()
+                    onBack?.invoke()
+                }
             }
         ),
         empty = empty,
@@ -162,6 +163,28 @@ private fun TimelineScreen(
         onBack = onBack,
         heroSourceKey = heroSourceKey(viewModel.albumId, state.filter)
     )
+}
+
+/** Shares the selection through the system sheet, or says it is too big. */
+@Composable
+private fun rememberShare(viewModel: TimelineViewModel): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val tooManyToShare = pluralStringResource(
+        R.plurals.share_too_many,
+        TimelineViewModel.MAX_SHARE,
+        TimelineViewModel.MAX_SHARE
+    )
+    return {
+        scope.launch {
+            val targets = viewModel.shareTargets()
+            if (targets == null) {
+                Toast.makeText(context, tooManyToShare, Toast.LENGTH_SHORT).show()
+            } else {
+                context.shareMedia(targets)
+            }
+        }
+    }
 }
 
 /** Everything a timeline screen can be asked to do. */
@@ -175,7 +198,13 @@ data class TimelineCallbacks(
     /** Opens an item, given with its position among items only. */
     val onOpen: (GridCell.Item, index: Int) -> Unit = { _, _ -> },
     /** Compares the two selected items. */
-    val onCompare: () -> Unit = {}
+    val onCompare: () -> Unit = {},
+    /** Opens a nested Drive album. */
+    val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> },
+    /** Nests or merges a tracked Drive folder's subfolders. */
+    val onMerge: (Boolean) -> Unit = {},
+    /** Removes a tracked Drive folder from PhotoXT. */
+    val onRemoveDriveFolder: () -> Unit = {}
 )
 
 /** The timeline screen without its ViewModel, for previews and screenshot tests. */
@@ -215,7 +244,13 @@ fun TimelineContent(
                 title
             },
             scrollBehavior = scrollBehavior,
-            navigationIcon = navigationIcon
+            navigationIcon = navigationIcon,
+            actions = {
+                val drive = state.drive
+                if (selected == 0 && drive != null && drive.isRoot) {
+                    DriveAlbumMenu(drive, callbacks.onMerge, callbacks.onRemoveDriveFolder)
+                }
+            }
         )
         if (state.access == MediaAccess.DENIED) {
             MediaAccessRequest(permissions, callbacks.onAccessResult, Modifier.weight(1f))
@@ -227,7 +262,8 @@ fun TimelineContent(
                 callbacks,
                 empty,
                 heroSourceKey,
-                Modifier.weight(1f)
+                inAlbum = onBack != null,
+                modifier = Modifier.weight(1f)
             )
             if (selected > 0) {
                 SelectionActions(
@@ -247,6 +283,7 @@ private fun TimelineGrid(
     callbacks: TimelineCallbacks,
     empty: @Composable () -> Unit,
     heroSourceKey: String?,
+    inAlbum: Boolean,
     modifier: Modifier = Modifier
 ) {
     val gridState = rememberLazyGridState()
@@ -270,8 +307,15 @@ private fun TimelineGrid(
                     if (state.access == MediaAccess.LIMITED) {
                         LimitedAccessBanner(permissions, callbacks.onAccessResult)
                     }
-                    FilterChips(state.filter, callbacks.onFilterChange)
-                    if (loaded && rows.itemCount == 0) {
+                    val drive = state.drive
+                    if (drive != null) DriveAlbumHeader(drive, callbacks.onOpenAlbum)
+                    FilterChips(
+                        state.filter,
+                        callbacks.onFilterChange,
+                        // Inside one album every item has the same source.
+                        if (inAlbum) AlbumFilters else MediaFilter.entries
+                    )
+                    if (loaded && rows.itemCount == 0 && drive?.children.isNullOrEmpty()) {
                         if (state.filter == MediaFilter.ALL) empty() else FilteredEmpty()
                     }
                 }
@@ -288,3 +332,5 @@ private fun TimelineGrid(
         )
     }
 }
+
+private val AlbumFilters = MediaFilter.entries - setOf(MediaFilter.DEVICE, MediaFilter.DRIVE)

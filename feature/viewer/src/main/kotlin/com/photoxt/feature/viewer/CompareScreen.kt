@@ -59,6 +59,7 @@ import coil3.size.Size as CoilSize
 import com.photoxt.core.database.MediaDao
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.designsystem.R as DesignR
+import com.photoxt.core.media.DriveOriginalRef
 import com.photoxt.core.ui.ImmersiveEffect
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -263,7 +264,11 @@ private fun CompareBar(split: Boolean, onSplit: (Boolean) -> Unit, onClose: () -
 // 16 MP shots; tiled decoding as in the viewer if bigger photos need to be compared up close.
 private fun compareRequest(context: Context, item: ViewerItem): ImageRequest =
     ImageRequest.Builder(context)
-        .data(item.contentUri)
+        .data(
+            item.contentUri ?: item.drive { id, version ->
+                DriveOriginalRef(item.id, id, version)
+            }
+        )
         .size(CoilSize.ORIGINAL)
         .placeholderMemoryCacheKey(item.thumbnailKey())
         .allowHardware(true)

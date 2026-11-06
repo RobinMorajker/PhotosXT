@@ -1,8 +1,12 @@
 # Overrides on top of detekt's default rules (buildUponDefaultConfig = true).
 complexity:
   # Compose components take flat parameter lists (Compose API guidelines).
+  # Retrofit methods take one parameter per Drive query parameter.
   LongParameterList:
-    ignoreAnnotated: ['Composable']
+    ignoreAnnotated: ['Composable', 'GET']
+  # A Room DAO is a list of queries.
+  TooManyFunctions:
+    ignoreAnnotated: ['Dao']
 
 naming:
   FunctionNaming:

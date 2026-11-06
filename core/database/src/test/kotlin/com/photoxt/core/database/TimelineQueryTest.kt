@@ -8,7 +8,7 @@ import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.DateGrouping
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaKind
-import com.photoxt.core.model.MediaSource
+import com.photoxt.core.model.SourceType
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -161,7 +161,7 @@ class TimelineQueryTest {
             val takenAt = LocalDateTime.parse(dateTime).toInstant(ZoneOffset.UTC).toEpochMilli()
             return MediaEntity(
                 id = id,
-                source = MediaSource.DEVICE,
+                source = SourceType.DEVICE,
                 volume = "external_primary",
                 contentUri = "content://$id",
                 albumId = album,

@@ -11,6 +11,12 @@ import com.photoxt.core.common.PxtLog
 import com.photoxt.core.media.DeviceMediaSync
 import com.photoxt.core.media.DeviceThumbnailFetcher
 import com.photoxt.core.media.DeviceThumbnailKeyer
+import com.photoxt.core.media.DriveOriginalFetcher
+import com.photoxt.core.media.DriveOriginalKeyer
+import com.photoxt.core.media.DriveOriginals
+import com.photoxt.core.media.DriveThumbnailKeyer
+import com.photoxt.core.media.DriveThumbnails
+import com.photoxt.core.sync.DriveSync
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -22,14 +28,25 @@ class PhotoXtApplication :
     @Inject
     lateinit var deviceMediaSync: DeviceMediaSync
 
+    @Inject
+    lateinit var driveSync: DriveSync
+
+    @Inject
+    lateinit var driveThumbnails: DriveThumbnails
+
+    @Inject
+    lateinit var driveOriginals: DriveOriginals
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) enableStrictMode()
         deviceMediaSync.start()
+        driveSync.start()
     }
 
     /**
-     * The one Coil image loader (spec §5.3). Device thumbnails come from MediaStore's cache.
+     * The one Coil image loader (spec §5.3). Device thumbnails come from MediaStore's cache; Drive
+     * thumbnails and full files from PhotoXT's own store, made or downloaded on first use.
      * Hardware bitmaps are off: a fling through the grid creates and frees hundreds of them, and
      * on the Galaxy A15 freeing their graphic buffers stalled the render thread. A full-size
      * image can opt back in on its own request.
@@ -40,6 +57,10 @@ class PhotoXtApplication :
             .components {
                 add(DeviceThumbnailKeyer())
                 add(DeviceThumbnailFetcher.Factory())
+                add(DriveThumbnailKeyer())
+                add(DriveThumbnails.Fetcher.Factory(driveThumbnails))
+                add(DriveOriginalKeyer())
+                add(DriveOriginalFetcher.Factory(driveOriginals))
                 // Animated GIF, WebP and HEIF in the viewer (spec §4.5); stills decode as before.
                 add(AnimatedImageDecoder.Factory())
             }

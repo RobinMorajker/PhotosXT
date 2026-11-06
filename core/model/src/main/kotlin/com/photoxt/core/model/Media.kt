@@ -4,13 +4,25 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Where an item's bytes live (spec §3). Drive and remote sources arrive in Phases 3 and 12. */
-enum class MediaSource { DEVICE }
+/**
+ * Where an item's bytes live (spec §3): [DEVICE] is MediaStore, [DRIVE] one Google account's
+ * Drive. Remote (someone else's public album) arrives in Phase 12.
+ */
+enum class SourceType { DEVICE, DRIVE }
 
 enum class MediaKind { IMAGE, VIDEO }
 
-/** Album types (spec §3). Drive, virtual and smart albums arrive in later phases. */
-enum class AlbumType { DEVICE_FOLDER }
+/** Album types (spec §3). Virtual and smart albums arrive in later phases. */
+enum class AlbumType { DEVICE_FOLDER, DRIVE_FOLDER }
+
+/**
+ * Where a cached Drive original stands (spec §3): only its thumbnail is on the phone, the full
+ * file is cached and expires, or it is pinned offline and never expires.
+ */
+enum class CacheState { THUMB_ONLY, CACHED, OFFLINE }
+
+/** A tracked Drive folder: its first scan is running, it is in step, or Drive refused it. */
+enum class TrackedFolderState { SCANNING, READY, UNAVAILABLE }
 
 /** How much of the phone's media PhotoXT may read (spec §4.3, permissions UX). */
 enum class MediaAccess {
@@ -24,11 +36,8 @@ enum class MediaAccess {
     DENIED
 }
 
-/**
- * Timeline filter chips (spec §4.2). Device, Drive and Offline join when Drive albums exist
- * (Phase 3); until then every item is a device item.
- */
-enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES }
+/** Timeline filter chips (spec §4.2). Offline joins with offline pins (Phase 4). */
+enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES, DEVICE, DRIVE }
 
 /**
  * The calendar unit a timeline's date headers group by. Keys are local-calendar integers stored

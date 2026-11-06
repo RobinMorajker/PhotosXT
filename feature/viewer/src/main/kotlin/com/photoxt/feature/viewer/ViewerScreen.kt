@@ -18,6 +18,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -50,6 +51,7 @@ import com.photoxt.core.media.ImageTraits
 import com.photoxt.core.media.Panorama
 import com.photoxt.core.model.DisplayMode
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.ViewerStart
 import com.photoxt.core.ui.HdrWindowEffect
 import com.photoxt.core.ui.ImmersiveEffect
@@ -274,7 +276,19 @@ private fun ViewerPages(
                 motionPlaying = ui.motion == item.id,
                 handle = handle,
                 actions = actions,
-                modifier = pageModifier
+                modifier = pageModifier,
+                drive = if (item.source == SourceType.DRIVE) {
+                    val original by viewModel.originalOf(item).collectAsStateWithLifecycle()
+                    val blur by produceState<Blur?>(null, item.id) {
+                        value = viewModel.blurOf(item)
+                    }
+                    val preview by produceState<java.io.File?>(null, item.id) {
+                        value = viewModel.previewOf(item)
+                    }
+                    DrivePage(original, preview, blur)
+                } else {
+                    null
+                }
             )
 
             MediaKind.VIDEO -> VideoPage(item, mode, handle, actions, pageModifier)

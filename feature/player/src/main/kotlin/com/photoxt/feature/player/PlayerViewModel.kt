@@ -12,11 +12,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.photoxt.core.database.MediaDao
 import com.photoxt.core.database.ViewerItem
+import com.photoxt.core.media.DriveVideo
 import com.photoxt.core.media.PlaybackPositions
 import com.photoxt.core.media.SubtitleFile
 import com.photoxt.core.media.SubtitleFinder
+import com.photoxt.core.model.SourceType
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -40,7 +43,8 @@ class PlayerViewModel @AssistedInject constructor(
     @ApplicationContext context: Context,
     private val mediaDao: MediaDao,
     private val positions: PlaybackPositions,
-    private val subtitleFinder: SubtitleFinder
+    private val subtitleFinder: SubtitleFinder,
+    private val driveVideo: DriveVideo
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -83,34 +87,40 @@ class PlayerViewModel @AssistedInject constructor(
 
     private suspend fun load() {
         val video = mediaDao.viewerItem(mediaId) ?: return
-        val uri = video.contentUri ?: return
+        val drive = video.driveFile()
+        val uri = drive?.let { driveVideo.uri(it.fileId) } ?: video.contentUri ?: return
         loaded.value = video
-        val found = mediaDao.folderOf(mediaId)?.let {
-            subtitleFinder.find(it, video.name)
-        }.orEmpty()
+        // Side-loaded subtitles are files beside the video on the phone (spec §4.6).
+        val found = if (drive != null) emptyList() else subtitlesOf(video)
         subtitleFiles.value = found
         val mediaItem = MediaItem.Builder()
             .setUri(uri.toUri())
-            .setSubtitleConfigurations(
-                found.mapIndexed { index, file ->
-                    MediaItem.SubtitleConfiguration.Builder(file.contentUri.toUri())
-                        .setMimeType(file.mime)
-                        .setLanguage(file.language)
-                        .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
-                        .build()
-                }
-            )
+            .setCustomCacheKey(drive?.let { driveVideo.cacheKey(it.fileId, it.version) })
+            .setSubtitleConfigurations(found.mapIndexed(::subtitleConfiguration))
             .build()
         val resumeAt = positions.resumeAt(mediaId)
-        if (resumeAt != null) {
-            player.setMediaItem(mediaItem, resumeAt)
-            resumed.value = resumeAt
+        if (drive != null) {
+            // Streamed from Drive with Range requests through the video cache (spec §4.4).
+            val source = DefaultMediaSourceFactory(driveVideo.dataSourceFactory(drive.accountId))
+                .createMediaSource(mediaItem)
+            player.setMediaSource(source, resumeAt ?: 0L)
         } else {
-            player.setMediaItem(mediaItem)
+            player.setMediaItem(mediaItem, resumeAt ?: 0L)
         }
+        resumed.value = resumeAt
         player.prepare()
         player.playWhenReady = true
     }
+
+    private suspend fun subtitlesOf(video: ViewerItem): List<SubtitleFile> =
+        mediaDao.folderOf(mediaId)?.let { subtitleFinder.find(it, video.name) }.orEmpty()
+
+    private fun subtitleConfiguration(index: Int, file: SubtitleFile) =
+        MediaItem.SubtitleConfiguration.Builder(file.contentUri.toUri())
+            .setMimeType(file.mime)
+            .setLanguage(file.language)
+            .setSelectionFlags(if (index == 0) C.SELECTION_FLAG_DEFAULT else 0)
+            .build()
 
     fun startOver() {
         resumed.value = null
@@ -136,4 +146,15 @@ class PlayerViewModel @AssistedInject constructor(
         const val SKIP_MS = 10_000L
         const val SAVE_EVERY_MS = 5_000L
     }
+}
+
+/** A Drive video's account, file and version. */
+private class DriveFileRef(val accountId: String, val fileId: String, val version: Long)
+
+private fun ViewerItem.driveFile(): DriveFileRef? {
+    if (source != SourceType.DRIVE) return null
+    val account = accountId ?: return null
+    val file = remoteId ?: return null
+    val fileVersion = remoteVersion ?: return null
+    return DriveFileRef(account, file, fileVersion)
 }

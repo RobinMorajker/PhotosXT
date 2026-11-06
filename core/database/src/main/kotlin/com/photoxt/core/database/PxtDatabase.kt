@@ -21,11 +21,16 @@ import javax.inject.Singleton
         AlbumEntity::class,
         MediaEntity::class,
         MediaStoreCursorEntity::class,
-        PlaybackPositionEntity::class
+        PlaybackPositionEntity::class,
+        AccountEntity::class,
+        TrackedFolderEntity::class,
+        DriveFolderEntity::class,
+        DriveThumbnailEntity::class,
+        DriveCacheEntity::class
     ],
-    version = 2,
-    // 2 (Phase 2): video resume points.
-    autoMigrations = [AutoMigration(from = 1, to = 2)]
+    version = 3,
+    // 2 (Phase 2): video resume points. 3 (Phase 3): Google accounts and Drive albums.
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)]
 )
 abstract class PxtDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
@@ -35,6 +40,8 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun albumDao(): AlbumDao
 
     abstract fun playbackDao(): PlaybackDao
+
+    abstract fun driveDao(): DriveDao
 }
 
 @Module
@@ -56,4 +63,7 @@ object DatabaseModule {
 
     @Provides
     fun playbackDao(database: PxtDatabase): PlaybackDao = database.playbackDao()
+
+    @Provides
+    fun driveDao(database: PxtDatabase): DriveDao = database.driveDao()
 }

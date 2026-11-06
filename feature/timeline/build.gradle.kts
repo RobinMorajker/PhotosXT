@@ -12,12 +12,14 @@ android {
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:media"))
+    implementation(project(":core:sync"))
     implementation(project(":core:ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
 }

@@ -17,11 +17,13 @@ import com.photoxt.core.database.groupCounts
 import com.photoxt.core.database.stampsInGroup
 import com.photoxt.core.database.timeline
 import com.photoxt.core.media.DeviceMediaSync
-import com.photoxt.core.media.DeviceThumbnail
 import com.photoxt.core.media.MediaAccessMonitor
+import com.photoxt.core.media.MediaRef
+import com.photoxt.core.media.thumbnailOf
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.SourceType
 import com.photoxt.core.ui.GridCell
 import com.photoxt.core.ui.GridDensity
 import com.photoxt.core.ui.TimelineLayout
@@ -37,6 +39,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -49,8 +52,25 @@ data class TimelineUiState(
     val density: GridDensity = GridDensity.Default,
     val layout: TimelineLayout = TimelineLayout.EMPTY,
     /** Selected item ids, each with its capture time. */
-    val selection: Map<String, Long> = emptyMap()
+    val selection: Map<String, Long> = emptyMap(),
+    /** A Drive album's subfolders and sync state; null for Pictures and phone albums. */
+    val drive: DriveAlbumInfo? = null
 )
+
+/** What a Drive album shows besides its items (spec §4.2, §4.3). */
+@Immutable
+data class DriveAlbumInfo(
+    /** The tracked folder itself, which can merge its subfolders or be removed. */
+    val isRoot: Boolean,
+    val merge: Boolean,
+    val syncing: Boolean,
+    val needsConsent: Boolean,
+    /** Subfolders shown as nested albums. */
+    val children: List<ChildAlbum>
+)
+
+@Immutable
+data class ChildAlbum(val id: String, val title: String, val count: Int, val cover: Any?)
 
 /** Pictures when [albumId] is null, otherwise the grid of that one album. */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -60,7 +80,8 @@ class TimelineViewModel @AssistedInject constructor(
     private val mediaDao: MediaDao,
     private val mediaAccess: MediaAccessMonitor,
     private val deviceMediaSync: DeviceMediaSync,
-    private val savedState: SavedStateHandle
+    private val savedState: SavedStateHandle,
+    private val driveAlbums: DriveAlbums
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -96,12 +117,28 @@ class TimelineViewModel @AssistedInject constructor(
         }
     }
 
+    /** Whether this is a Drive album, which needs no access to the phone's media. */
+    private val isDrive = albumId?.startsWith(DRIVE_PREFIX) == true
+
+    private val access: Flow<MediaAccess> =
+        if (isDrive) flowOf(MediaAccess.FULL) else mediaAccess.state
+
+    private val driveInfo: Flow<DriveAlbumInfo?> =
+        if (albumId != null && isDrive) driveAlbums.info(albumId) else flowOf(null)
+
     val uiState: StateFlow<TimelineUiState> =
-        combine(mediaAccess.state, filter, density, layout, selection, ::TimelineUiState)
+        combine(
+            combine(access, filter, density, layout, selection, ::TimelineUiState),
+            driveInfo
+        ) { state, drive -> state.copy(drive = drive) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                TimelineUiState(mediaAccess.state.value, filter.value, density.value)
+                TimelineUiState(
+                    if (isDrive) MediaAccess.FULL else mediaAccess.state.value,
+                    filter.value,
+                    density.value
+                )
             )
 
     /** After a permission answer: re-read access and index whatever became visible. */
@@ -138,6 +175,17 @@ class TimelineViewModel @AssistedInject constructor(
         }
     }
 
+    /** Nests this Drive album's subfolders as albums, or merges them into it. */
+    fun setMerge(merge: Boolean) {
+        val id = albumId ?: return
+        viewModelScope.launch { driveAlbums.setMerge(id, merge) }
+    }
+
+    /** Stops showing this tracked Drive folder; nothing changes in Drive. */
+    suspend fun removeDriveFolder() {
+        albumId?.let { driveAlbums.remove(it) }
+    }
+
     /** The two selected items for Compare, the newer first, or null unless exactly two. */
     fun comparePair(): Pair<String, String>? {
         val selected = selection.value.entries.sortedByDescending { it.value }
@@ -168,6 +216,7 @@ class TimelineViewModel @AssistedInject constructor(
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val KEY_FILTER = "filter"
         private const val KEY_DENSITY = "density"
+        private const val DRIVE_PREFIX = "drive:"
     }
 }
 
@@ -179,7 +228,16 @@ internal fun TimelineRow.toCell(): GridCell {
         val sideways = rotation % HALF_TURN != 0
         GridCell.Item(
             id = itemId,
-            thumbnail = contentUri?.let { DeviceThumbnail(it, modifiedAt) },
+            thumbnail = thumbnailOf(
+                MediaRef(
+                    id = itemId,
+                    source = source ?: SourceType.DEVICE,
+                    contentUri = contentUri,
+                    modifiedAt = modifiedAt,
+                    remoteId = itemId.substringAfterLast(':'),
+                    remoteVersion = remoteVersion
+                )
+            ),
             isVideo = kind == MediaKind.VIDEO,
             durationMs = durationMs,
             favorite = favorite,

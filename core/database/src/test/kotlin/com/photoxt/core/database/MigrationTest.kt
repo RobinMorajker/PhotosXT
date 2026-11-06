@@ -43,6 +43,65 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun version2To3KeepsDeviceItemsAndAddsDriveTablesThatGoWithTheirItems() {
+        helper.createDatabase(NAME, 2).use { db ->
+            db.execSQL(
+                "INSERT INTO album VALUES " +
+                    "('device:1', 'DEVICE_FOLDER', 'external_primary:DCIM/Camera/', 'Camera')"
+            )
+            db.execSQL(
+                "INSERT INTO media VALUES ('device:7', 'DEVICE', 'external_primary', " +
+                    "'content://media/external/images/media/7', 'device:1', 'a.jpg', " +
+                    "'image/jpeg', 'IMAGE', 100, 4000, 3000, 0, NULL, 1, 1, 0, 0, 0)"
+            )
+            db.execSQL("INSERT INTO playback_position VALUES ('device:7', 1, 2, 3)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 3, true).use { db ->
+            assertEquals(1, db.count("media"))
+            assertEquals(1, db.count("playback_position"))
+            // Device rows read back with empty Drive columns.
+            db.query(
+                "SELECT m.remoteId, m.accountId, a.parentId FROM media m " +
+                    "JOIN album a ON a.id = m.albumId"
+            ).use {
+                it.moveToFirst()
+                assertEquals(null, it.getString(0))
+                assertEquals(null, it.getString(1))
+                assertEquals(null, it.getString(2))
+            }
+            db.execSQL(
+                "INSERT INTO account VALUES ('a', 'a@example.com', NULL, NULL, '', 0, NULL, " +
+                    "NULL, 1)"
+            )
+            db.execSQL(
+                "INSERT INTO album (id, type, sourceRef, title, accountId, parentId, rootId) " +
+                    "VALUES ('drive:a:f', 'DRIVE_FOLDER', 'drive:F/', 'F', 'a', NULL, 'drive:a:f')"
+            )
+            db.execSQL(
+                "INSERT INTO tracked_folder VALUES ('drive:a:f', 'a', 'f', NULL, 0, 'READY', 1)"
+            )
+            db.execSQL("INSERT INTO drive_folder VALUES ('a', 'f', NULL, 'drive:a:f', 'F')")
+            db.execSQL(
+                "INSERT INTO media (id, source, volume, contentUri, albumId, name, mime, kind, " +
+                    "bytes, width, height, rotation, durationMs, takenAt, modifiedAt, dayKey, " +
+                    "monthKey, favorite, accountId, remoteId, remoteVersion) VALUES " +
+                    "('drive:a:x', 'DRIVE', NULL, NULL, 'drive:a:f', 'x.jpg', 'image/jpeg', " +
+                    "'IMAGE', 1, 1, 1, 0, NULL, 1, 1, 0, 0, 0, 'a', 'x', 3)"
+            )
+            db.execSQL("INSERT INTO drive_thumbnail VALUES ('drive:a:x', 3, 'LKO2', 0, 1)")
+            db.execSQL("INSERT INTO drive_cache VALUES ('drive:a:x', '/f', 3, 1, 1, 1, 0)")
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("DELETE FROM media WHERE id = 'drive:a:x'")
+            assertEquals(0, db.count("drive_thumbnail"))
+            assertEquals(0, db.count("drive_cache"))
+            db.execSQL("DELETE FROM account WHERE id = 'a'")
+            assertEquals(0, db.count("tracked_folder"))
+            assertEquals(0, db.count("drive_folder"))
+        }
+    }
+
     private fun SupportSQLiteDatabase.count(table: String): Int =
         query("SELECT COUNT(*) FROM $table").use { cursor ->
             cursor.moveToFirst()

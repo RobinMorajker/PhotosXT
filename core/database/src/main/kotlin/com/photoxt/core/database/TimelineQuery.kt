@@ -33,11 +33,11 @@ data class TimelineQuery(
         """
         SELECT 1 AS isHeader, $groupKey AS groupKey, NULL AS id, NULL AS contentUri, NULL AS kind,
             NULL AS durationMs, 0 AS favorite, 0 AS modifiedAt, MAX(takenAt) AS takenAt,
-            0 AS width, 0 AS height, 0 AS rotation
+            0 AS width, 0 AS height, 0 AS rotation, NULL AS source, NULL AS remoteVersion
         FROM media ${where()} GROUP BY $groupKey
         UNION ALL
         SELECT 0, $groupKey, id, contentUri, kind, durationMs, favorite, modifiedAt, takenAt,
-            width, height, rotation
+            width, height, rotation, source, remoteVersion
         FROM media ${where()}
         ORDER BY groupKey DESC, isHeader DESC, takenAt DESC, id DESC
         """.trimIndent(),
@@ -70,6 +70,8 @@ data class MediaListQuery(val filter: MediaFilter = MediaFilter.ALL, val albumId
             MediaFilter.PHOTOS -> "kind = 'IMAGE'"
             MediaFilter.VIDEOS -> "kind = 'VIDEO'"
             MediaFilter.FAVORITES -> "favorite = 1"
+            MediaFilter.DEVICE -> "source = 'DEVICE'"
+            MediaFilter.DRIVE -> "source = 'DRIVE'"
         },
         albumId?.let { "albumId = ?" }
     )
@@ -95,4 +97,5 @@ data class MediaListQuery(val filter: MediaFilter = MediaFilter.ALL, val albumId
 }
 
 internal const val VIEWER_COLUMNS = "id, contentUri, albumId, name, mime, kind, bytes, width, " +
-    "height, rotation, durationMs, takenAt, modifiedAt, favorite"
+    "height, rotation, durationMs, takenAt, modifiedAt, favorite, source, accountId, remoteId, " +
+    "remoteVersion, lat, lng, camera"

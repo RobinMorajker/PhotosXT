@@ -75,6 +75,10 @@ enum class TopLevelTab(
 @Serializable
 data class AlbumKey(val albumId: String, val title: String) : NavKey
 
+/** The Drive folder browser of one Google account (spec §4.2), on the Albums stack. */
+@Serializable
+data class DriveBrowserKey(val accountId: String) : NavKey
+
 // Full-screen destinations shown over the tabs, so the grid stays underneath (spec §4.5): the
 // viewer flies back into it, and closing any of them returns to exactly where the user was.
 

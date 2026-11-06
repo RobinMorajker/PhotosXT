@@ -7,7 +7,7 @@ import com.photoxt.core.database.MediaStoreCursorEntity
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.DateGrouping
-import com.photoxt.core.model.MediaSource
+import com.photoxt.core.model.SourceType
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -129,7 +129,7 @@ private fun DeviceMedia.toEntity(zone: ZoneId): MediaEntity {
         ?: (dateModifiedSec.takeIf { it > 0 } ?: dateAddedSec) * MILLIS_PER_SECOND
     return MediaEntity(
         id = deviceMediaId(id),
-        source = MediaSource.DEVICE,
+        source = SourceType.DEVICE,
         volume = volume,
         contentUri = contentUri,
         albumId = deviceAlbumId(bucketId),
