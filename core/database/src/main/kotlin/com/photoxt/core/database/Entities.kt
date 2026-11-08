@@ -78,7 +78,9 @@ data class TrackedFolderEntity(
     val driveId: String?,
     val mergeSubfolders: Boolean,
     val state: TrackedFolderState,
-    val scannedAt: Long?
+    val scannedAt: Long?,
+    /** "Make album available offline" (spec §4.4): every item below it is pinned, new ones too. */
+    @ColumnInfo(defaultValue = "0") val offline: Boolean = false
 )
 
 /**
@@ -191,7 +193,8 @@ data class DriveThumbnailEntity(
 
 /**
  * A Drive item's full file on the phone (spec §4.4): where it is and when it was last opened, for
- * the 30-day retention (Phase 4). Removing the item removes it.
+ * the retention rule. A pinned item's file sits in `media-offline/` and never expires; whether an
+ * item is pinned is [OfflinePinEntity]'s business. Removing the item removes this row.
  */
 @Entity(
     tableName = "drive_cache",
@@ -210,8 +213,46 @@ data class DriveCacheEntity(
     val version: Long,
     val bytes: Long,
     val cachedAt: Long,
-    val lastOpenedAt: Long,
-    @ColumnInfo(defaultValue = "0") val offlinePinned: Boolean
+    val lastOpenedAt: Long
+)
+
+/**
+ * A Drive item the user keeps offline (spec §3, `OFFLINE`): its full file is fetched into
+ * `media-offline/` and never expires. Written only when pins change, so the Offline filter can
+ * observe it without every file opening reloading the grids.
+ */
+@Entity(
+    tableName = "offline_pin",
+    foreignKeys = [
+        ForeignKey(
+            entity = MediaEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["mediaId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class OfflinePinEntity(@PrimaryKey val mediaId: String, val pinnedAt: Long)
+
+/**
+ * Files of one version of a Drive file that no item uses any more (spec §4.3, cleanup): its grid
+ * thumbnail and preview, its cached original at [cachePath] and its video spans. An item removed
+ * in Drive leaves one with a 7-day grace, so restoring it in Drive brings it back with its files;
+ * a replaced version leaves one due at once. The cache cleanup deletes the files after
+ * [purgeAfter].
+ */
+@Entity(tableName = "drive_orphan", primaryKeys = ["accountId", "fileId", "version"])
+data class DriveOrphanEntity(
+    val accountId: String,
+    val fileId: String,
+    val version: Long,
+    val md5: String?,
+    val bytes: Long,
+    val mime: String,
+    val purgeAfter: Long,
+    val cachePath: String?,
+    /** It was pinned offline, so a restore pins it again. */
+    val pinned: Boolean
 )
 
 /**
@@ -320,4 +361,27 @@ data class AlbumSummary(
     val coverVersion: Long?,
     val accountId: String?,
     val state: TrackedFolderState?
+)
+
+/** A Drive item as sync sees it: where it is placed and which content it has. */
+data class KnownDriveItem(
+    val id: String,
+    val remoteId: String,
+    val albumId: String,
+    /** The tracked folder's album. */
+    val rootId: String?,
+    val remoteParentId: String?
+)
+
+/** One Drive item's files, for the Storage screen and the cache cleanup (spec §4.4). */
+data class DriveItemFiles(
+    val id: String,
+    val accountId: String,
+    val rootId: String?,
+    val remoteId: String,
+    val remoteVersion: Long,
+    val kind: MediaKind,
+    val cachePath: String?,
+    val cacheBytes: Long?,
+    val pinned: Boolean
 )

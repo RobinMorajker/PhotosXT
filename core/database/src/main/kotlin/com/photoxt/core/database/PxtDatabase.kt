@@ -3,8 +3,10 @@ package com.photoxt.core.database
 import android.content.Context
 import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,11 +28,18 @@ import javax.inject.Singleton
         TrackedFolderEntity::class,
         DriveFolderEntity::class,
         DriveThumbnailEntity::class,
-        DriveCacheEntity::class
+        DriveCacheEntity::class,
+        OfflinePinEntity::class,
+        DriveOrphanEntity::class
     ],
-    version = 3,
+    version = 4,
     // 2 (Phase 2): video resume points. 3 (Phase 3): Google accounts and Drive albums.
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)]
+    // 4 (Phase 4): offline pins, orphans and albums kept offline.
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4, spec = Version3To4::class)
+    ]
 )
 abstract class PxtDatabase : RoomDatabase() {
     abstract fun mediaDao(): MediaDao
@@ -42,7 +51,13 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun playbackDao(): PlaybackDao
 
     abstract fun driveDao(): DriveDao
+
+    abstract fun driveCacheDao(): DriveCacheDao
 }
+
+/** Pins moved from a never-set `drive_cache` column to the `offline_pin` table. */
+@DeleteColumn(tableName = "drive_cache", columnName = "offlinePinned")
+class Version3To4 : AutoMigrationSpec
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -66,4 +81,7 @@ object DatabaseModule {
 
     @Provides
     fun driveDao(database: PxtDatabase): DriveDao = database.driveDao()
+
+    @Provides
+    fun driveCacheDao(database: PxtDatabase): DriveCacheDao = database.driveCacheDao()
 }

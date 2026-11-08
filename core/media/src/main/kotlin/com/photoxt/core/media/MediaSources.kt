@@ -28,8 +28,8 @@ data class MediaRef(
 /**
  * Where an item's bytes come from (spec §5.3). Feature code asks this, never MediaStore or Drive
  * directly, so more sources (OneDrive, NAS, WebDAV) can come later without touching it.
- * Listing changes stays with each source's sync (MediaStore indexer, Drive scanner) until the
- * Changes API sync in Phase 4; copy, move and delete arrive with file operations in Phase 5.
+ * Listing changes stays with each source's sync (the MediaStore indexer; Drive's scanner and
+ * Changes feed in core/sync); copy, move and delete arrive with file operations in Phase 5.
  */
 interface MediaSource {
     val type: SourceType

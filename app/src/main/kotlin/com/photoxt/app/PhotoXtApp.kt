@@ -34,6 +34,8 @@ import com.photoxt.core.ui.LocalMediaHero
 import com.photoxt.core.ui.MediaHeroState
 import com.photoxt.feature.albums.AlbumsScreen
 import com.photoxt.feature.albums.DriveBrowserScreen
+import com.photoxt.feature.library.LibraryScreen
+import com.photoxt.feature.library.StorageScreen
 import com.photoxt.feature.timeline.AlbumScreen
 import com.photoxt.feature.timeline.PicturesScreen
 import com.photoxt.feature.timeline.TimelineNavigation
@@ -105,7 +107,8 @@ private fun appEntries(
     val timelineNavigation = TimelineNavigation(
         onOpen = { start -> navigation.openOverlay(ViewerKey(start)) },
         onCompare = { first, second -> navigation.openOverlay(CompareKey(first, second)) },
-        onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) }
+        onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) },
+        onRelink = { albumId, accountId -> navigation.open(DriveBrowserKey(accountId, albumId)) }
     )
     entry(TopLevelTab.Pictures) {
         PicturesScreen(
@@ -126,10 +129,12 @@ private fun appEntries(
     entry<DriveBrowserKey> { key ->
         DriveBrowserScreen(
             accountId = key.accountId,
+            relinkAlbumId = key.relinkAlbumId,
             onBack = navigation::goBack,
             onAdded = { id, title ->
                 navigation.goBack()
-                navigation.open(AlbumKey(id, title))
+                // A relinked album is the one underneath already.
+                if (key.relinkAlbumId == null) navigation.open(AlbumKey(id, title))
             }
         )
     }
@@ -143,11 +148,18 @@ private fun appEntries(
             navigation = timelineNavigation
         )
     }
+    entry(TopLevelTab.Library) {
+        LibraryScreen(
+            title = stringResource(TopLevelTab.Library.title),
+            onOpenStorage = { navigation.open(StorageKey) }
+        )
+    }
+    entry<StorageKey> { StorageScreen(onBack = navigation::goBack) }
     PlaceholderTabs.forEach { tab -> entry(tab) { TabScreen(tab) } }
 }
 
 /** Tabs whose content arrives in later phases; until then they show their empty state. */
-private val PlaceholderTabs = listOf(TopLevelTab.Shared, TopLevelTab.Public, TopLevelTab.Library)
+private val PlaceholderTabs = listOf(TopLevelTab.Shared, TopLevelTab.Public)
 
 @Composable
 private fun TabEmptyState(tab: TopLevelTab, modifier: Modifier = Modifier) {

@@ -27,6 +27,18 @@
             </intent-filter>
         </activity>
 
+        <!-- WorkManager starts on demand from PhotoXtApplication's configuration instead. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
         <!-- The mini map's key; empty unless set at build time (see app/build.gradle.kts). -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"

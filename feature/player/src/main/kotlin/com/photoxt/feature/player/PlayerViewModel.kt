@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.photoxt.core.database.MediaDao
 import com.photoxt.core.database.ViewerItem
+import com.photoxt.core.media.DriveOriginals
 import com.photoxt.core.media.DriveVideo
 import com.photoxt.core.media.PlaybackPositions
 import com.photoxt.core.media.SubtitleFile
@@ -44,7 +45,8 @@ class PlayerViewModel @AssistedInject constructor(
     private val mediaDao: MediaDao,
     private val positions: PlaybackPositions,
     private val subtitleFinder: SubtitleFinder,
-    private val driveVideo: DriveVideo
+    private val driveVideo: DriveVideo,
+    private val originals: DriveOriginals
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -87,11 +89,16 @@ class PlayerViewModel @AssistedInject constructor(
 
     private suspend fun load() {
         val video = mediaDao.viewerItem(mediaId) ?: return
-        val drive = video.driveFile()
-        val uri = drive?.let { driveVideo.uri(it.fileId) } ?: video.contentUri ?: return
+        // A Drive video kept offline or downloaded plays from the phone (spec §4.4).
+        val local = video.driveFile()?.let { originals.localFile(mediaId) }
+        val drive = video.driveFile().takeIf { local == null }
+        val uri = local?.toUri()?.toString()
+            ?: drive?.let { driveVideo.uri(it.fileId) }
+            ?: video.contentUri
+            ?: return
         loaded.value = video
         // Side-loaded subtitles are files beside the video on the phone (spec §4.6).
-        val found = if (drive != null) emptyList() else subtitlesOf(video)
+        val found = if (video.source == SourceType.DRIVE) emptyList() else subtitlesOf(video)
         subtitleFiles.value = found
         val mediaItem = MediaItem.Builder()
             .setUri(uri.toUri())

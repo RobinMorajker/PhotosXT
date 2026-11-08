@@ -26,6 +26,7 @@
     <string name="drive_status_attention">Needs attention</string>
     <string name="drive_status_offline">Offline</string>
     <string name="drive_badge">Google Drive</string>
+    <string name="refresh_failed">Couldn\'t reach Google Drive. Showing what\'s on this phone.</string>
 
     <!-- The in-app Drive folder browser. -->
     <string name="browser_title">Add Drive folder</string>
@@ -42,6 +43,10 @@
     <string name="browser_merge">Merge subfolders into one album</string>
     <string name="browser_add_folder">Add “%1$s”</string>
     <string name="browser_pick_folder">Open a folder to add it</string>
+    <string name="browser_relink_title">Relink album</string>
+    <string name="browser_relink">Link to “%1$s”</string>
+    <string name="browser_pick_relink">Open the folder this album should follow</string>
+    <string name="browser_already_album">That folder is already an album.</string>
 
     <plurals name="album_item_count">
         <item quantity="one">%1$,d item</item>

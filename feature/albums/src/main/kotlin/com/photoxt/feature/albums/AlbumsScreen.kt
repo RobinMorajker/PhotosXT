@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -84,6 +85,9 @@ fun AlbumsScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var sheet by rememberSaveable { mutableStateOf<AccountsSheetMode?>(null) }
     val actions = rememberAccountActions(viewModel, onBrowseDrive, closeSheet = { sheet = null })
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val unreachable = stringResource(R.string.refresh_failed)
     AlbumsContent(
         title = title,
         state = state,
@@ -99,6 +103,13 @@ fun AlbumsScreen(
         },
         onAccounts = { sheet = AccountsSheetMode.MANAGE },
         onReconnect = actions.onReconnect,
+        onRefresh = {
+            scope.launch {
+                if (!viewModel.refresh()) {
+                    Toast.makeText(context, unreachable, Toast.LENGTH_SHORT).show()
+                }
+            }
+        },
         empty = empty,
         modifier = modifier
     )
@@ -174,12 +185,46 @@ fun AlbumsContent(
     modifier: Modifier = Modifier,
     onAddDriveFolder: () -> Unit = {},
     onAccounts: () -> Unit = {},
-    onReconnect: (accountId: String) -> Unit = {}
+    onReconnect: (accountId: String) -> Unit = {},
+    onRefresh: () -> Unit = {}
+) {
+    // Outside the header's scroll connection: a pull expands the header first (spec §4.3).
+    PullToRefreshBox(
+        isRefreshing = state.refreshing,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize()
+    ) {
+        AlbumsColumn(
+            title = title,
+            state = state,
+            permissions = permissions,
+            onAccessResult = onAccessResult,
+            onOpenAlbum = onOpenAlbum,
+            empty = empty,
+            onAddDriveFolder = onAddDriveFolder,
+            onAccounts = onAccounts,
+            onReconnect = onReconnect
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AlbumsColumn(
+    title: String,
+    state: AlbumsUiState,
+    permissions: Array<String>,
+    onAccessResult: () -> Unit,
+    onOpenAlbum: (id: String, title: String) -> Unit,
+    empty: @Composable () -> Unit,
+    onAddDriveFolder: () -> Unit,
+    onAccounts: () -> Unit,
+    onReconnect: (accountId: String) -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState()
     )
-    Column(modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
+    Column(Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         PxtCollapsingHeader(
             title = title,
             scrollBehavior = scrollBehavior,

@@ -1,5 +1,6 @@
 package com.photoxt.feature.albums
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -48,6 +49,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -64,20 +66,24 @@ import kotlinx.coroutines.launch
 /**
  * "Add Drive folder" (spec §4.2): browse [accountId]'s My Drive, Shared with me, Shared drives,
  * Starred, or search, then add the open folder as an album, its subfolders nested or merged.
- * [onAdded] gets the new album's id and title.
+ * [onAdded] gets the new album's id and title. With [relinkAlbumId], the open folder becomes the
+ * one that unavailable album follows instead (Relink, spec §4.3).
  */
 @Composable
 fun DriveBrowserScreen(
     accountId: String,
     onBack: () -> Unit,
     onAdded: (albumId: String, title: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    relinkAlbumId: String? = null
 ) {
     val viewModel = hiltViewModel<DriveBrowserViewModel, DriveBrowserViewModel.Factory>(
-        key = accountId
-    ) { it.create(accountId) }
+        key = "$accountId/$relinkAlbumId"
+    ) { it.create(accountId, relinkAlbumId) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val taken = stringResource(R.string.browser_already_album)
     var asked by rememberSaveable { mutableStateOf(false) }
     val consent = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
@@ -122,7 +128,12 @@ fun DriveBrowserScreen(
             override fun onAdd() {
                 scope.launch {
                     val title = state.current?.name.orEmpty()
-                    viewModel.addCurrent()?.let { onAdded(it, title) }
+                    val albumId = viewModel.addCurrent()
+                    if (albumId != null) {
+                        onAdded(albumId, title)
+                    } else {
+                        Toast.makeText(context, taken, Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         },
@@ -164,7 +175,9 @@ fun DriveBrowserContent(
     )
     Column(modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         PxtCollapsingHeader(
-            title = state.current?.name ?: stringResource(R.string.browser_title),
+            title = state.current?.name ?: stringResource(
+                if (state.relinking) R.string.browser_relink_title else R.string.browser_title
+            ),
             scrollBehavior = scrollBehavior,
             navigationIcon = {
                 IconButton(onClick = actions::onBack) {
@@ -319,42 +332,54 @@ private fun AddBar(state: DriveBrowserUiState, actions: BrowserActions) {
     Surface(tonalElevation = 3.dp) {
         Column(Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
             HorizontalDivider()
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = current != null, role = Role.Switch) {
-                        actions.onMerge(!state.merge)
-                    }
-                    .padding(vertical = 4.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.browser_merge),
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(
-                    checked = state.merge,
-                    onCheckedChange = null,
-                    enabled = current != null
-                )
-            }
+            // A relinked album keeps its own subfolder setting.
+            if (!state.relinking) MergeSwitch(state, actions)
             Button(
                 onClick = actions::onAdd,
                 enabled = current != null,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = if (current != null) {
-                        stringResource(R.string.browser_add_folder, current.name)
-                    } else {
-                        stringResource(R.string.browser_pick_folder)
+                    text = when {
+                        current == null && state.relinking ->
+                            stringResource(R.string.browser_pick_relink)
+
+                        current == null -> stringResource(R.string.browser_pick_folder)
+
+                        state.relinking -> stringResource(R.string.browser_relink, current.name)
+
+                        else -> stringResource(R.string.browser_add_folder, current.name)
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MergeSwitch(state: DriveBrowserUiState, actions: BrowserActions) {
+    val current = state.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = current != null, role = Role.Switch) {
+                actions.onMerge(!state.merge)
+            }
+            .padding(vertical = 4.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.browser_merge),
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = state.merge,
+            onCheckedChange = null,
+            enabled = current != null
+        )
     }
 }
 

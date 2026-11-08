@@ -6,6 +6,7 @@ import android.graphics.Matrix
 import androidx.core.graphics.scale
 import androidx.exifinterface.media.ExifInterface
 import com.photoxt.core.common.PxtLog
+import com.photoxt.core.database.DriveCacheDao
 import com.photoxt.core.database.DriveCacheEntity
 import com.photoxt.core.database.DriveDao
 import com.photoxt.core.database.DriveItem
@@ -17,6 +18,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -50,46 +53,70 @@ sealed interface Original {
 /**
  * Drive items' full files on the phone (spec §4.4): opened from the cache when there, otherwise
  * streamed into it, resuming a partial download with a Range request and checked by size and MD5
- * before use (spec §0 rule 4). Opening records the time for the 30-day retention (Phase 4), and
- * the first open of a photo also leaves a ~1600 px preview for next time.
+ * before use (spec §0 rule 4). Opening records the time for the retention rule, and the first
+ * open of a photo also leaves a ~1600 px preview for next time. A pinned item's file lives in
+ * `media-offline/` instead, where the cache cleanup never looks.
  */
 @Singleton
 class DriveOriginals @Inject constructor(
     private val dao: DriveDao,
+    private val cacheDao: DriveCacheDao,
     private val sources: MediaSources,
-    private val store: ThumbnailStore
+    private val store: ThumbnailStore,
+    private val clock: Clock
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val locks = ConcurrentHashMap<String, Mutex>()
+    private val prefetching = ConcurrentHashMap.newKeySet<String>()
 
     /** A Drive item's BlurHash, the first placeholder of its page (spec §4.4). */
     suspend fun blurhash(mediaId: String): String? = dao.blurhash(mediaId)
 
-    /** The preview of [fileId] at [version], if one was made. Reads the disk, off the main thread. */
+    /**
+     * The preview of [fileId] at [version], if one was made. Reads the disk, off the main thread,
+     * and marks it used for the preview LRU.
+     */
     suspend fun preview(fileId: String, version: Long): File? = withContext(Dispatchers.IO) {
         store.preview(fileId, version).takeIf { it.exists() }
+            ?.also { it.setLastModified(clock.millis()) }
     }
 
-    /** The full file of [mediaId], from the cache or downloaded now. */
+    /** [mediaId]'s full file if it is on the phone already, current and complete. */
+    suspend fun localFile(mediaId: String): File? = withContext(Dispatchers.IO) {
+        val item = dao.driveItem(mediaId) ?: return@withContext null
+        dao.cached(mediaId)?.takeIf { it.version == item.remoteVersion }
+            ?.let { File(it.path) }
+            ?.takeIf { complete(it, item) }
+    }
+
+    /** The full file of [mediaId], from the phone or downloaded now. */
     fun original(mediaId: String): Flow<Original> = flow {
         val item = dao.driveItem(mediaId) ?: throw IOException("The item is gone")
-        val target = store.original(item.accountId, item.remoteId, item.remoteVersion, item.mime)
-        locks.getOrPut(mediaId) { Mutex() }.withLock {
+        // Under the item's lock, so pinning cannot move the file between download and record.
+        val target = locks.getOrPut(mediaId) { Mutex() }.withLock {
+            val known = dao.cached(mediaId)
+            val target = known?.takeIf { it.version == item.remoteVersion }?.let { File(it.path) }
+                ?: store.original(
+                    item.accountId,
+                    item.remoteId,
+                    item.remoteVersion,
+                    item.mime,
+                    offline = cacheDao.isPinned(mediaId)
+                )
             if (!complete(target, item)) download(item, target) { emit(Original.Loading(it)) }
-        }
-        val now = System.currentTimeMillis()
-        val known = dao.cached(mediaId)
-        dao.saveCache(
-            DriveCacheEntity(
-                mediaId = mediaId,
-                path = target.path,
-                version = item.remoteVersion,
-                bytes = target.length(),
-                cachedAt = known?.takeIf { it.path == target.path }?.cachedAt ?: now,
-                lastOpenedAt = now,
-                offlinePinned = known?.offlinePinned ?: false
+            val now = clock.millis()
+            dao.saveCache(
+                DriveCacheEntity(
+                    mediaId = mediaId,
+                    path = target.path,
+                    version = item.remoteVersion,
+                    bytes = target.length(),
+                    cachedAt = known?.takeIf { it.path == target.path }?.cachedAt ?: now,
+                    lastOpenedAt = now
+                )
             )
-        )
+            target
+        }
         emit(Original.Ready(target))
         if (item.kind == MediaKind.IMAGE) scope.launch { makePreview(item, target) }
     }.catch {
@@ -97,6 +124,75 @@ class DriveOriginals @Inject constructor(
         PxtLog.w(TAG, "Could not open a Drive original", it)
         emit(Original.Failed(it))
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Fetches the originals of [mediaIds] in the background (spec §4.4, viewer prefetch), each at
+     * most once at a time; a download already running for the page itself is shared.
+     */
+    fun prefetch(mediaIds: List<String>) {
+        mediaIds.filter { prefetching.add(it) }.forEach { id ->
+            scope.launch {
+                try {
+                    original(id).collect()
+                } finally {
+                    prefetching.remove(id)
+                }
+            }
+        }
+    }
+
+    /**
+     * Puts [mediaId]'s current file into `media-offline/` (spec §4.4, offline pins): moved there
+     * when it is cached already, downloaded otherwise. Throws when the download fails.
+     */
+    suspend fun keepOffline(mediaId: String) = withContext(Dispatchers.IO) {
+        val item = dao.driveItem(mediaId) ?: return@withContext
+        val target =
+            store.original(item.accountId, item.remoteId, item.remoteVersion, item.mime, true)
+        locks.getOrPut(mediaId) { Mutex() }.withLock {
+            val known = dao.cached(mediaId)
+            val current = known?.takeIf { it.version == item.remoteVersion }?.let { File(it.path) }
+            when {
+                current == target && complete(target, item) -> Unit
+                current != null && complete(current, item) -> moveInto(current, target)
+                else -> download(item, target) {}
+            }
+            val now = clock.millis()
+            dao.saveCache(
+                DriveCacheEntity(
+                    mediaId = mediaId,
+                    path = target.path,
+                    version = item.remoteVersion,
+                    bytes = target.length(),
+                    cachedAt = known?.cachedAt ?: now,
+                    lastOpenedAt = known?.lastOpenedAt ?: now
+                )
+            )
+        }
+    }
+
+    /** Moves an unpinned item's file from `media-offline/` back into the cache. */
+    suspend fun releaseOffline(cached: DriveCacheEntity) = withContext(Dispatchers.IO) {
+        locks.getOrPut(cached.mediaId) { Mutex() }.withLock {
+            val item = dao.driveItem(cached.mediaId) ?: return@withLock
+            val from = File(cached.path)
+            val to = store.original(item.accountId, item.remoteId, cached.version, item.mime)
+            if (from.exists()) {
+                moveInto(from, to)
+                cacheDao.moveCache(cached.mediaId, to.path)
+            } else {
+                cacheDao.deleteCache(listOf(cached.mediaId))
+            }
+        }
+    }
+
+    private fun moveInto(from: File, to: File) {
+        to.parentFile?.mkdirs()
+        if (!from.renameTo(to)) {
+            from.copyTo(to, overwrite = true)
+            from.delete()
+        }
+    }
 
     private fun complete(target: File, item: DriveItem) =
         target.exists() && (item.bytes <= 0 || target.length() == item.bytes)

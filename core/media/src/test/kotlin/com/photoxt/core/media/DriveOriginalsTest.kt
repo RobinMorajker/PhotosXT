@@ -15,6 +15,7 @@ import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import java.io.File
 import java.security.MessageDigest
+import java.time.Clock
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.Dispatcher
@@ -70,8 +71,10 @@ class DriveOriginalsTest {
             ThumbnailStore(File(context.cacheDir, "originals-test").apply { deleteRecursively() })
         originals = DriveOriginals(
             database.driveDao(),
+            database.driveCacheDao(),
             MediaSources(DeviceSource(context), DriveSource(http)),
-            store
+            store,
+            Clock.systemUTC()
         )
     }
 

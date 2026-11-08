@@ -14,6 +14,7 @@ dependencies {
     implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:media"))
+    implementation(project(":core:sync"))
     implementation(project(":core:ui"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

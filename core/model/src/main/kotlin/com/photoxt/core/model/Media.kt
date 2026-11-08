@@ -21,7 +21,10 @@ enum class AlbumType { DEVICE_FOLDER, DRIVE_FOLDER }
  */
 enum class CacheState { THUMB_ONLY, CACHED, OFFLINE }
 
-/** A tracked Drive folder: its first scan is running, it is in step, or Drive refused it. */
+/**
+ * A tracked Drive folder: a scan is running or due, it is in step, or it was binned, deleted or
+ * unshared in Drive (spec §4.3, lost access): then its items stay until the user removes it.
+ */
 enum class TrackedFolderState { SCANNING, READY, UNAVAILABLE }
 
 /** How much of the phone's media PhotoXT may read (spec §4.3, permissions UX). */
@@ -36,8 +39,8 @@ enum class MediaAccess {
     DENIED
 }
 
-/** Timeline filter chips (spec §4.2). Offline joins with offline pins (Phase 4). */
-enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES, DEVICE, DRIVE }
+/** Timeline filter chips (spec §4.2). [OFFLINE] is the Drive items pinned offline. */
+enum class MediaFilter { ALL, PHOTOS, VIDEOS, FAVORITES, DEVICE, DRIVE, OFFLINE }
 
 /**
  * The calendar unit a timeline's date headers group by. Keys are local-calendar integers stored

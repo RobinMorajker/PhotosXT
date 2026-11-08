@@ -10,25 +10,47 @@ import dagger.hilt.components.SingletonComponent
 import java.io.File
 import java.io.OutputStream
 import java.security.MessageDigest
+import java.time.Clock
 import javax.inject.Singleton
 
 /**
  * Where Drive items' files live on the phone (spec §5.6), all under app-internal `filesDir` so
- * the system never purges them early: grid thumbnails (kept while the item exists), previews,
- * and cached originals. Thumbnail keys are file id plus version, so a changed file can never show
- * a stale thumbnail.
+ * the system never purges them early: grid thumbnails (kept while the item exists), previews
+ * (a capped LRU), cached originals (retention and a cap) and originals pinned offline (never
+ * evicted). Keys are file id plus version, so a changed file can never show stale pixels.
  */
 class ThumbnailStore(private val filesDir: File) {
     fun grid(fileId: String, version: Long): File = keyed("thumbs/grid", fileId, version)
 
     fun preview(fileId: String, version: Long): File = keyed("thumbs/preview", fileId, version)
 
-    /** Every cached original of [accountId]. */
-    fun originals(accountId: String): File = File(filesDir, "media/$accountId")
+    /** Every preview, for the preview LRU. */
+    val previews: File get() = File(filesDir, "thumbs/preview")
 
-    /** A cached original: `media/<account>/<file id>_<version>.<ext>`. */
-    fun original(accountId: String, fileId: String, version: Long, mime: String): File =
-        File(filesDir, "media/$accountId/${fileId}_$version.${extensionOf(mime)}")
+    /** Where pinned originals live; the cache cleanup never looks in here. */
+    val offline: File get() = File(filesDir, OFFLINE)
+
+    /** [offline] as a path prefix, to tell pinned files from cached ones in the database. */
+    val offlinePrefix: String get() = offline.path + File.separator
+
+    /** Every cached and pinned original of [accountId]. */
+    fun originals(accountId: String): List<File> =
+        listOf(File(filesDir, "$CACHED/$accountId"), File(filesDir, "$OFFLINE/$accountId"))
+
+    /**
+     * An original: `media/<account>/<file id>_<version>.<ext>`, or under `media-offline/` when
+     * [offline] (pinned).
+     */
+    fun original(
+        accountId: String,
+        fileId: String,
+        version: Long,
+        mime: String,
+        offline: Boolean = false
+    ): File = File(
+        filesDir,
+        "${if (offline) OFFLINE else CACHED}/$accountId/${fileId}_$version.${extensionOf(mime)}"
+    )
 
     private fun keyed(kind: String, fileId: String, version: Long): File {
         val key = "${fileId}_$version"
@@ -57,6 +79,8 @@ class ThumbnailStore(private val filesDir: File) {
             }
 
         private const val WEBP_QUALITY = 80
+        private const val CACHED = "media"
+        private const val OFFLINE = "media-offline"
 
         private val EXTENSIONS = mapOf(
             "image/jpeg" to "jpg",
@@ -85,4 +109,8 @@ internal object ThumbnailStoreModule {
     @Singleton
     fun store(@ApplicationContext context: Context): ThumbnailStore =
         ThumbnailStore(context.filesDir)
+
+    /** The wall clock; tests pass a fixed one (spec §0 rule 6, fake clock). */
+    @Provides
+    fun clock(): Clock = Clock.systemUTC()
 }

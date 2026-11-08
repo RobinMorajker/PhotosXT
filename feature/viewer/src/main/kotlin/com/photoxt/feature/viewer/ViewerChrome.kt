@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -161,6 +162,13 @@ private fun OverflowMenu(actions: ChromeActions) {
             MenuEntry(R.string.action_open_with, pick(actions.onOpenWith))
             MenuEntry(R.string.action_set_as, pick(actions.onSetAs))
             MenuEntry(R.string.action_copy, pick(actions.onCopy))
+            actions.offline?.let { pinned ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.action_keep_offline)) },
+                    trailingIcon = { Checkbox(checked = pinned, onCheckedChange = null) },
+                    onClick = pick { actions.onOffline(!pinned) }
+                )
+            }
         }
     }
 }

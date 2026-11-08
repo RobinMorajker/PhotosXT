@@ -13,6 +13,7 @@ import com.photoxt.core.drive.DriveHttp
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.TrackedFolderState
+import java.time.Clock
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.CopyOnWriteArrayList
@@ -61,7 +62,9 @@ class DriveScannerTest {
 
             override suspend fun invalidate(accountId: String, token: String) = Unit
         }
-        scanner = DriveScanner(DriveHttp(tokens, server.url("/")), database)
+        val clock = Clock.systemUTC()
+        val http = DriveHttp(tokens, server.url("/"))
+        scanner = DriveScanner(http, database, DriveItems(database, clock), clock)
     }
 
     @After

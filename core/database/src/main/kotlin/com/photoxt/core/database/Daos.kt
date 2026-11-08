@@ -2,6 +2,7 @@ package com.photoxt.core.database
 
 import androidx.paging.PagingSource
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -15,10 +16,11 @@ import kotlinx.coroutines.flow.Flow
 /** What screens read about media. Call the raw queries through the [TimelineQuery] extensions. */
 @Dao
 interface MediaDao {
-    @RawQuery(observedEntities = [MediaEntity::class])
+    // Offline pins feed the Offline filter; they change only when the user pins or unpins.
+    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
     fun timelineRows(query: SupportSQLiteQuery): PagingSource<Int, TimelineRow>
 
-    @RawQuery(observedEntities = [MediaEntity::class])
+    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
     fun groupCountRows(query: SupportSQLiteQuery): Flow<List<GroupCount>>
 
     @RawQuery
@@ -28,7 +30,7 @@ interface MediaDao {
     @Query("SELECT contentUri, mime FROM media WHERE id IN (:ids) AND contentUri IS NOT NULL")
     suspend fun shareTargets(ids: List<String>): List<ShareTarget>
 
-    @RawQuery(observedEntities = [MediaEntity::class])
+    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
     fun viewerItemRows(query: SupportSQLiteQuery): PagingSource<Int, ViewerItem>
 
     @RawQuery
@@ -193,6 +195,75 @@ interface DriveDao {
     @Query("UPDATE account SET changesToken = :token WHERE id = :id AND changesToken IS NULL")
     suspend fun saveFirstChangesToken(id: String, token: String)
 
+    /** Where the Changes feed continues after a page applied in the same transaction (§5.5). */
+    @Query("UPDATE account SET changesToken = :token, lastSyncAt = :at WHERE id = :id")
+    suspend fun saveChangesToken(id: String, token: String, at: Long)
+
+    /** Drops the feed position once no folder of [id] is tracked; a new folder takes a new one. */
+    @Query(
+        "UPDATE account SET changesToken = NULL WHERE id = :id " +
+            "AND NOT EXISTS (SELECT 1 FROM tracked_folder WHERE accountId = :id)"
+    )
+    suspend fun forgetChangesTokenIfUntracked(id: String)
+
+    @Query("SELECT * FROM account")
+    suspend fun accountList(): List<AccountEntity>
+
+    @Query("SELECT * FROM tracked_folder WHERE accountId = :accountId")
+    suspend fun trackedFoldersOf(accountId: String): List<TrackedFolderEntity>
+
+    @Query(
+        "SELECT * FROM tracked_folder WHERE accountId = :accountId AND driveFolderId = :folderId"
+    )
+    suspend fun trackedByFolder(accountId: String, folderId: String): TrackedFolderEntity?
+
+    /** At most 999 ids per call. */
+    @Query("UPDATE tracked_folder SET state = :state WHERE albumId IN (:ids)")
+    suspend fun setStates(ids: List<String>, state: TrackedFolderState)
+
+    /** Points tracked folder [albumId] at another Drive folder (Relink); a scan follows. */
+    @Query(
+        "UPDATE tracked_folder SET driveFolderId = :folderId, driveId = :driveId, " +
+            "state = 'SCANNING' WHERE albumId = :albumId"
+    )
+    suspend fun relink(albumId: String, folderId: String, driveId: String?)
+
+    @Query("UPDATE tracked_folder SET offline = :offline WHERE albumId = :albumId")
+    suspend fun setOffline(albumId: String, offline: Boolean)
+
+    @Query("SELECT * FROM drive_folder WHERE accountId = :accountId")
+    suspend fun foldersOfAccount(accountId: String): List<DriveFolderEntity>
+
+    @Query("UPDATE drive_folder SET name = :name WHERE accountId = :accountId AND folderId = :id")
+    suspend fun renameFolder(accountId: String, id: String, name: String)
+
+    @Query("SELECT id FROM album WHERE accountId = :accountId")
+    suspend fun albumIdsOfAccount(accountId: String): List<String>
+
+    /** The album of every tracked folder, by title. */
+    @Query(
+        "SELECT a.* FROM album a JOIN tracked_folder t ON t.albumId = a.id " +
+            "ORDER BY a.title COLLATE NOCASE"
+    )
+    suspend fun trackedAlbums(): List<AlbumEntity>
+
+    @Query("UPDATE album SET title = :title, sourceRef = :sourceRef WHERE id = :id")
+    suspend fun retitleAlbum(id: String, title: String, sourceRef: String)
+
+    /** At most 999 ids per call. */
+    @Query("SELECT * FROM media WHERE id IN (:ids)")
+    suspend fun mediaRows(ids: List<String>): List<MediaEntity>
+
+    /** Where [accountId]'s Drive files [fileIds] sit now, those PhotoXT has. At most 999 ids. */
+    @Query(
+        """
+        SELECT m.id, m.remoteId, m.albumId, a.rootId, m.remoteParentId
+        FROM media m JOIN album a ON a.id = m.albumId
+        WHERE m.accountId = :accountId AND m.remoteId IN (:fileIds)
+        """
+    )
+    suspend fun knownItems(accountId: String, fileIds: List<String>): List<KnownDriveItem>
+
     @Query("SELECT * FROM tracked_folder")
     fun trackedFolders(): Flow<List<TrackedFolderEntity>>
 
@@ -305,6 +376,166 @@ interface DriveDao {
 
     @Query("UPDATE drive_cache SET lastOpenedAt = :at WHERE mediaId = :mediaId")
     suspend fun touchCache(mediaId: String, at: Long)
+}
+
+/**
+ * The cache lifecycle (spec §4.4): offline pins, cached originals by age and size, and orphans,
+ * the files of items Drive no longer has. Pins of [MAX_SQL_VARIABLES] ids at most per call.
+ */
+@Dao
+interface DriveCacheDao {
+    @Query(
+        "INSERT OR IGNORE INTO offline_pin (mediaId, pinnedAt) " +
+            "SELECT id, :at FROM media WHERE id IN (:ids) AND source = 'DRIVE'"
+    )
+    suspend fun pin(ids: List<String>, at: Long)
+
+    @Query("DELETE FROM offline_pin WHERE mediaId IN (:ids)")
+    suspend fun unpin(ids: List<String>)
+
+    /** Pins every item below tracked folder [rootId]. */
+    @Query(
+        """
+        INSERT OR IGNORE INTO offline_pin (mediaId, pinnedAt)
+        SELECT id, :at FROM media WHERE albumId IN (SELECT id FROM album WHERE rootId = :rootId)
+        """
+    )
+    suspend fun pinTree(rootId: String, at: Long)
+
+    @Query(
+        """
+        DELETE FROM offline_pin WHERE mediaId IN (SELECT id FROM media
+            WHERE albumId IN (SELECT id FROM album WHERE rootId = :rootId))
+        """
+    )
+    suspend fun unpinTree(rootId: String)
+
+    /** Pins what joined a tracked folder kept offline since its last pass. */
+    @Query(
+        """
+        INSERT OR IGNORE INTO offline_pin (mediaId, pinnedAt)
+        SELECT m.id, :at FROM media m JOIN album a ON a.id = m.albumId
+            JOIN tracked_folder t ON t.albumId = a.rootId
+        WHERE t.offline = 1
+        """
+    )
+    suspend fun pinOfflineTrees(at: Long)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM offline_pin WHERE mediaId = :mediaId)")
+    fun pinnedFlow(mediaId: String): Flow<Boolean>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM offline_pin WHERE mediaId = :mediaId)")
+    suspend fun isPinned(mediaId: String): Boolean
+
+    /** Pinned items whose current file is not in [offlineDir] yet, oldest pin first. */
+    @Query(
+        """
+        SELECT p.mediaId FROM offline_pin p JOIN media m ON m.id = p.mediaId
+            LEFT JOIN drive_cache c ON c.mediaId = p.mediaId
+        WHERE c.mediaId IS NULL OR c.version != m.remoteVersion
+            OR substr(c.path, 1, length(:offlineDir)) != :offlineDir
+        ORDER BY p.pinnedAt
+        """
+    )
+    suspend fun pinsToFetch(offlineDir: String): List<String>
+
+    /** Files in [offlineDir] whose item is no longer pinned: they go back to the cache. */
+    @Query(
+        """
+        SELECT * FROM drive_cache WHERE substr(path, 1, length(:offlineDir)) = :offlineDir
+            AND mediaId NOT IN (SELECT mediaId FROM offline_pin)
+        """
+    )
+    suspend fun unpinnedOffline(offlineDir: String): List<DriveCacheEntity>
+
+    /** Cached originals not pinned and last opened before [before]: the retention rule. */
+    @Query(
+        "SELECT * FROM drive_cache WHERE lastOpenedAt < :before " +
+            "AND mediaId NOT IN (SELECT mediaId FROM offline_pin)"
+    )
+    suspend fun expired(before: Long): List<DriveCacheEntity>
+
+    /** Cached originals not pinned, the most recently opened first: the cap keeps the head. */
+    @Query(
+        "SELECT * FROM drive_cache WHERE mediaId NOT IN (SELECT mediaId FROM offline_pin) " +
+            "ORDER BY lastOpenedAt DESC, mediaId"
+    )
+    suspend fun unpinnedNewestFirst(): List<DriveCacheEntity>
+
+    /** Cached originals not pinned below tracked folder [rootId], or everywhere when null. */
+    @Query(
+        """
+        SELECT c.* FROM drive_cache c JOIN media m ON m.id = c.mediaId
+            JOIN album a ON a.id = m.albumId
+        WHERE (:rootId IS NULL OR a.rootId = :rootId)
+            AND c.mediaId NOT IN (SELECT mediaId FROM offline_pin)
+        """
+    )
+    suspend fun unpinnedUnder(rootId: String?): List<DriveCacheEntity>
+
+    @Query("DELETE FROM drive_cache WHERE mediaId IN (:ids)")
+    suspend fun deleteCache(ids: List<String>)
+
+    /** Moves an original's row along with its file (into or out of the offline folder). */
+    @Query("UPDATE drive_cache SET path = :path WHERE mediaId = :mediaId")
+    suspend fun moveCache(mediaId: String, path: String)
+
+    /**
+     * Records the files of items [ids] as an orphan due after [purgeAfter], from their rows as
+     * they are now: call before the rows go or change version.
+     */
+    @Query(
+        """
+        INSERT OR REPLACE INTO drive_orphan
+            (accountId, fileId, version, md5, bytes, mime, purgeAfter, cachePath, pinned)
+        SELECT m.accountId, m.remoteId, COALESCE(m.remoteVersion, 0), m.md5, m.bytes, m.mime,
+            :purgeAfter, c.path, p.mediaId IS NOT NULL
+        FROM media m LEFT JOIN drive_cache c ON c.mediaId = m.id
+            LEFT JOIN offline_pin p ON p.mediaId = m.id
+        WHERE m.id IN (:ids) AND m.accountId IS NOT NULL AND m.remoteId IS NOT NULL
+        """
+    )
+    suspend fun orphan(ids: List<String>, purgeAfter: Long)
+
+    @Query("DELETE FROM media WHERE id IN (:ids)")
+    suspend fun deleteMediaRows(ids: List<String>)
+
+    /** Removes Drive items [ids]; their files stay as orphans until [purgeAfter]. */
+    @Transaction
+    suspend fun removeItems(ids: List<String>, purgeAfter: Long) {
+        ids.chunked(MAX_SQL_VARIABLES).forEach {
+            orphan(it, purgeAfter)
+            deleteMediaRows(it)
+        }
+    }
+
+    @Query("SELECT * FROM drive_orphan WHERE accountId = :accountId AND fileId IN (:fileIds)")
+    suspend fun orphansOf(accountId: String, fileIds: List<String>): List<DriveOrphanEntity>
+
+    /** Orphans due by [now], or every orphan with [now] at `Long.MAX_VALUE`. */
+    @Query("SELECT * FROM drive_orphan WHERE purgeAfter <= :now")
+    suspend fun dueOrphans(now: Long): List<DriveOrphanEntity>
+
+    @Query("SELECT * FROM drive_orphan WHERE accountId = :accountId")
+    suspend fun orphansOfAccount(accountId: String): List<DriveOrphanEntity>
+
+    @Delete
+    suspend fun deleteOrphans(orphans: List<DriveOrphanEntity>)
+
+    /** Drive items with their files, below tracked folder [rootId] or everywhere when null. */
+    @Query(
+        """
+        SELECT m.id, m.accountId, a.rootId, m.remoteId, COALESCE(m.remoteVersion, 0)
+            AS remoteVersion, m.kind, c.path AS cachePath, c.bytes AS cacheBytes,
+            p.mediaId IS NOT NULL AS pinned
+        FROM media m JOIN album a ON a.id = m.albumId
+            LEFT JOIN drive_cache c ON c.mediaId = m.id
+            LEFT JOIN offline_pin p ON p.mediaId = m.id
+        WHERE m.source = 'DRIVE' AND m.accountId IS NOT NULL AND m.remoteId IS NOT NULL
+            AND (:rootId IS NULL OR a.rootId = :rootId)
+        """
+    )
+    suspend fun itemFiles(rootId: String?): List<DriveItemFiles>
 }
 
 /** A Drive file and its version, to find its thumbnails on disk. */

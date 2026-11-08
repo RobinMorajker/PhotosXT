@@ -72,6 +72,7 @@ data class MediaListQuery(val filter: MediaFilter = MediaFilter.ALL, val albumId
             MediaFilter.FAVORITES -> "favorite = 1"
             MediaFilter.DEVICE -> "source = 'DEVICE'"
             MediaFilter.DRIVE -> "source = 'DRIVE'"
+            MediaFilter.OFFLINE -> "id IN (SELECT mediaId FROM offline_pin)"
         },
         albumId?.let { "albumId = ?" }
     )

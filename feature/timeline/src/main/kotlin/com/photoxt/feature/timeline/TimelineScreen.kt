@@ -24,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -62,13 +63,14 @@ import com.photoxt.core.ui.rememberDateGroupLabels
 import kotlinx.coroutines.launch
 
 /**
- * Where a timeline sends the user: the viewer, Compare for two selected items, or a nested Drive
- * album.
+ * Where a timeline sends the user: the viewer, Compare for two selected items, a nested Drive
+ * album, or the Drive browser to relink an unavailable album.
  */
 class TimelineNavigation(
     val onOpen: (ViewerStart) -> Unit = {},
     val onCompare: (firstId: String, secondId: String) -> Unit = { _, _ -> },
-    val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> }
+    val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> },
+    val onRelink: (albumId: String, accountId: String) -> Unit = { _, _ -> }
 )
 
 /**
@@ -121,6 +123,7 @@ private fun TimelineScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val rows = viewModel.rows.collectAsLazyPagingItems()
     val share = rememberShare(viewModel)
+    val refresh = rememberRefresh(viewModel)
     val scope = rememberCoroutineScope()
     val selecting = state.selection.isNotEmpty()
     val reportSelectionMode by rememberUpdatedState(onSelectionModeChange)
@@ -151,18 +154,44 @@ private fun TimelineScreen(
             },
             onOpenAlbum = navigation.onOpenAlbum,
             onMerge = viewModel::setMerge,
+            onOffline = viewModel::setOffline,
             onRemoveDriveFolder = {
                 scope.launch {
                     viewModel.removeDriveFolder()
                     onBack?.invoke()
                 }
-            }
+            },
+            onRelink = {
+                val albumId = viewModel.albumId
+                val drive = state.drive
+                if (albumId != null && drive != null) navigation.onRelink(albumId, drive.accountId)
+            },
+            onRefresh = refresh
         ),
         empty = empty,
         modifier = modifier,
         onBack = onBack,
         heroSourceKey = heroSourceKey(viewModel.albumId, state.filter)
     )
+}
+
+/** Pull-to-refresh, saying so when Google Drive could not be reached. */
+@Composable
+private fun rememberRefresh(viewModel: TimelineViewModel): () -> Unit {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val unreachable = stringResource(R.string.refresh_failed)
+    return {
+        scope.launch {
+            if (!viewModel.refresh()) {
+                Toast.makeText(
+                    context,
+                    unreachable,
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
 }
 
 /** Shares the selection through the system sheet, or says it is too big. */
@@ -203,8 +232,14 @@ data class TimelineCallbacks(
     val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> },
     /** Nests or merges a tracked Drive folder's subfolders. */
     val onMerge: (Boolean) -> Unit = {},
+    /** Keeps a tracked Drive folder available offline, or stops. */
+    val onOffline: (Boolean) -> Unit = {},
     /** Removes a tracked Drive folder from PhotoXT. */
-    val onRemoveDriveFolder: () -> Unit = {}
+    val onRemoveDriveFolder: () -> Unit = {},
+    /** Points an unavailable Drive album at a folder again. */
+    val onRelink: () -> Unit = {},
+    /** Pull-to-refresh. */
+    val onRefresh: () -> Unit = {}
 )
 
 /** The timeline screen without its ViewModel, for previews and screenshot tests. */
@@ -221,6 +256,29 @@ fun TimelineContent(
     onBack: (() -> Unit)? = null,
     heroSourceKey: String? = null
 ) {
+    // Outside the header's scroll connection, so pulling down first expands the header and
+    // only a pull past it refreshes (spec §4.3, pull-to-refresh).
+    PullToRefreshBox(
+        isRefreshing = state.refreshing,
+        onRefresh = callbacks.onRefresh,
+        modifier = modifier.fillMaxSize()
+    ) {
+        TimelineColumn(title, state, rows, permissions, callbacks, empty, onBack, heroSourceKey)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimelineColumn(
+    title: String,
+    state: TimelineUiState,
+    rows: LazyPagingItems<GridCell>,
+    permissions: Array<String>,
+    callbacks: TimelineCallbacks,
+    empty: @Composable () -> Unit,
+    onBack: (() -> Unit)?,
+    heroSourceKey: String?
+) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState()
     )
@@ -236,7 +294,7 @@ fun TimelineContent(
 
         else -> null
     }
-    Column(modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
+    Column(Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         PxtCollapsingHeader(
             title = if (selected > 0) {
                 pluralStringResource(R.plurals.selected_count, selected, selected)
@@ -248,7 +306,12 @@ fun TimelineContent(
             actions = {
                 val drive = state.drive
                 if (selected == 0 && drive != null && drive.isRoot) {
-                    DriveAlbumMenu(drive, callbacks.onMerge, callbacks.onRemoveDriveFolder)
+                    DriveAlbumMenu(
+                        drive,
+                        callbacks.onMerge,
+                        callbacks.onOffline,
+                        callbacks.onRemoveDriveFolder
+                    )
                 }
             }
         )
@@ -308,12 +371,24 @@ private fun TimelineGrid(
                         LimitedAccessBanner(permissions, callbacks.onAccessResult)
                     }
                     val drive = state.drive
-                    if (drive != null) DriveAlbumHeader(drive, callbacks.onOpenAlbum)
+                    if (drive != null) {
+                        DriveAlbumHeader(
+                            drive,
+                            callbacks.onOpenAlbum,
+                            callbacks.onRelink,
+                            callbacks.onRemoveDriveFolder
+                        )
+                    }
                     FilterChips(
                         state.filter,
                         callbacks.onFilterChange,
-                        // Inside one album every item has the same source.
-                        if (inAlbum) AlbumFilters else MediaFilter.entries
+                        // Inside one album every item has the same source; only Drive items can
+                        // be offline.
+                        when {
+                            !inAlbum -> MediaFilter.entries
+                            drive != null -> AlbumFilters
+                            else -> AlbumFilters - MediaFilter.OFFLINE
+                        }
                     )
                     if (loaded && rows.itemCount == 0 && drive?.children.isNullOrEmpty()) {
                         if (state.filter == MediaFilter.ALL) empty() else FilteredEmpty()

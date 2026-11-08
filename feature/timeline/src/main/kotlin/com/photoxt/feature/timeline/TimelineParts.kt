@@ -61,6 +61,7 @@ private val MediaFilter.label: Int
         MediaFilter.FAVORITES -> R.string.filter_favorites
         MediaFilter.DEVICE -> R.string.filter_device
         MediaFilter.DRIVE -> R.string.filter_drive
+        MediaFilter.OFFLINE -> R.string.filter_offline
     }
 
 @Composable

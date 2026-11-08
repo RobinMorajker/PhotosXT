@@ -2,6 +2,8 @@ package com.photoxt.app
 
 import android.app.Application
 import android.os.StrictMode
+import android.util.Log
+import androidx.work.Configuration
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
@@ -24,7 +26,8 @@ import javax.inject.Inject
 @HiltAndroidApp
 class PhotoXtApplication :
     Application(),
-    SingletonImageLoader.Factory {
+    SingletonImageLoader.Factory,
+    Configuration.Provider {
     @Inject
     lateinit var deviceMediaSync: DeviceMediaSync
 
@@ -43,6 +46,16 @@ class PhotoXtApplication :
         deviceMediaSync.start()
         driveSync.start()
     }
+
+    /**
+     * WorkManager starts on first use with this configuration (its startup initializer is off in
+     * the manifest), so tests and early callers never meet an uninitialized WorkManager. Workers
+     * reach their dependencies through a Hilt entry point (core/sync `SyncWork`).
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setMinimumLoggingLevel(if (BuildConfig.DEBUG) Log.INFO else Log.ERROR)
+            .build()
 
     /**
      * The one Coil image loader (spec §5.3). Device thumbnails come from MediaStore's cache; Drive

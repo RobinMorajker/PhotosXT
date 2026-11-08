@@ -24,7 +24,8 @@ import kotlinx.coroutines.withContext
 /**
  * Drive videos for Media3 (spec §4.4): streamed over OkHttp with the account's token and HTTP
  * Range requests, so playback can start and seek anywhere without the whole file, through
- * Media3's size-capped LRU [SimpleCache] in `cacheDir/exo`.
+ * Media3's size-capped LRU [SimpleCache] in `cacheDir/exo`. The cache cleanup also drops spans
+ * not played within the retention period, and every span of a removed or replaced video.
  */
 @Singleton
 @OptIn(UnstableApi::class)
@@ -32,8 +33,6 @@ class DriveVideo @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val http: DriveHttp
 ) {
-    // ponytail: size-capped LRU only; the 30-day rule for video spans comes with retention in
-    // Phase 4 (spec §4.4).
     private val cache by lazy {
         SimpleCache(
             File(context.cacheDir, "exo"),
@@ -75,6 +74,33 @@ class DriveVideo @Inject constructor(
 
     /** The cache key of [fileId] at [version], so an edited video never plays stale spans. */
     fun cacheKey(fileId: String, version: Long): String = "drive:$fileId@$version"
+
+    /** Cached bytes per cache key. */
+    suspend fun cachedBytes(): Map<String, Long> = withContext(Dispatchers.IO) {
+        cache.keys.associateWith { key -> cache.getCachedSpans(key).sumOf { it.length } }
+    }
+
+    /** Drops every span of [keys]. Returns the bytes freed. */
+    suspend fun remove(keys: Collection<String>): Long = withContext(Dispatchers.IO) {
+        keys.sumOf { key ->
+            val bytes = cache.getCachedSpans(key).sumOf { it.length }
+            cache.removeResource(key)
+            bytes
+        }
+    }
+
+    /** Drops spans last played before [before] (epoch ms). Returns the bytes freed. */
+    suspend fun trim(before: Long): Long = withContext(Dispatchers.IO) {
+        cache.keys.toList().sumOf { key ->
+            cache.getCachedSpans(key).filter { it.lastTouchTimestamp < before }.sumOf { span ->
+                cache.removeSpan(span)
+                span.length
+            }
+        }
+    }
+
+    /** Empties the video cache. Returns the bytes freed. */
+    suspend fun clear(): Long = remove(withContext(Dispatchers.IO) { cache.keys.toList() })
 
     /**
      * Where Media3 reads [accountId]'s Drive videos from: the cache, then Drive. The first call

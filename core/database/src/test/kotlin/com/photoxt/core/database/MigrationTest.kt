@@ -15,7 +15,8 @@ class MigrationTest {
     @get:Rule
     val helper = MigrationTestHelper(
         InstrumentationRegistry.getInstrumentation(),
-        PxtDatabase::class.java
+        PxtDatabase::class.java,
+        listOf(Version3To4())
     )
 
     @Test
@@ -99,6 +100,52 @@ class MigrationTest {
             db.execSQL("DELETE FROM account WHERE id = 'a'")
             assertEquals(0, db.count("tracked_folder"))
             assertEquals(0, db.count("drive_folder"))
+        }
+    }
+
+    @Test
+    fun version3To4KeepsCachedOriginalsAndAddsPinsThatGoWithTheirItem() {
+        helper.createDatabase(NAME, 3).use { db ->
+            db.execSQL(
+                "INSERT INTO account VALUES ('a', 'a@example.com', NULL, NULL, '', 0, 't', " +
+                    "NULL, 1)"
+            )
+            db.execSQL(
+                "INSERT INTO album (id, type, sourceRef, title, accountId, parentId, rootId) " +
+                    "VALUES ('drive:a:f', 'DRIVE_FOLDER', 'drive:F/', 'F', 'a', NULL, 'drive:a:f')"
+            )
+            db.execSQL(
+                "INSERT INTO tracked_folder VALUES ('drive:a:f', 'a', 'f', NULL, 0, 'READY', 1)"
+            )
+            db.execSQL(
+                "INSERT INTO media (id, source, volume, contentUri, albumId, name, mime, kind, " +
+                    "bytes, width, height, rotation, durationMs, takenAt, modifiedAt, dayKey, " +
+                    "monthKey, favorite, accountId, remoteId, remoteVersion) VALUES " +
+                    "('drive:a:x', 'DRIVE', NULL, NULL, 'drive:a:f', 'x.jpg', 'image/jpeg', " +
+                    "'IMAGE', 1, 1, 1, 0, NULL, 1, 1, 0, 0, 0, 'a', 'x', 3)"
+            )
+            db.execSQL("INSERT INTO drive_cache VALUES ('drive:a:x', '/f', 3, 1, 2, 5, 0)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 4, true).use { db ->
+            db.query("SELECT path, lastOpenedAt FROM drive_cache").use {
+                it.moveToFirst()
+                assertEquals("/f", it.getString(0))
+                assertEquals(5L, it.getLong(1))
+            }
+            db.query("SELECT offline FROM tracked_folder").use {
+                it.moveToFirst()
+                assertEquals(0, it.getInt(0))
+            }
+            db.execSQL("INSERT INTO offline_pin VALUES ('drive:a:x', 9)")
+            db.execSQL(
+                "INSERT INTO drive_orphan VALUES ('a', 'y', 2, NULL, 1, 'image/jpeg', 0, NULL, 0)"
+            )
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("DELETE FROM media WHERE id = 'drive:a:x'")
+            assertEquals(0, db.count("offline_pin"))
+            assertEquals(0, db.count("drive_cache"))
+            assertEquals(1, db.count("drive_orphan"))
         }
     }
 

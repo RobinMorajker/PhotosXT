@@ -22,6 +22,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import retrofit2.HttpException
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.create
@@ -125,6 +126,14 @@ class DriveHttp(private val tokens: DriveTokens, val baseUrl: HttpUrl = DEFAULT_
 
 /** Drive answered [code] to a file request. */
 class DriveHttpException(val code: Int) : IOException("Drive answered HTTP $code")
+
+/** The HTTP status of a Drive error answer, from a REST call or a file request; else null. */
+val Throwable.driveStatus: Int?
+    get() = when (this) {
+        is HttpException -> code()
+        is DriveHttpException -> code
+        else -> null
+    }
 
 /** Runs [this] call on OkHttp's threads, cancelling it with the coroutine. */
 suspend fun Call.await(): Response = withContext(Dispatchers.IO) {

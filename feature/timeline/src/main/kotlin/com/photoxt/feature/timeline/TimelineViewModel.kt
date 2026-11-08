@@ -54,16 +54,23 @@ data class TimelineUiState(
     /** Selected item ids, each with its capture time. */
     val selection: Map<String, Long> = emptyMap(),
     /** A Drive album's subfolders and sync state; null for Pictures and phone albums. */
-    val drive: DriveAlbumInfo? = null
+    val drive: DriveAlbumInfo? = null,
+    /** Pull-to-refresh is running. */
+    val refreshing: Boolean = false
 )
 
 /** What a Drive album shows besides its items (spec §4.2, §4.3). */
 @Immutable
 data class DriveAlbumInfo(
-    /** The tracked folder itself, which can merge its subfolders or be removed. */
+    val accountId: String,
+    /** The tracked folder itself, which can merge its subfolders, go offline or be removed. */
     val isRoot: Boolean,
     val merge: Boolean,
+    /** "Make available offline" is on (spec §4.4). */
+    val offline: Boolean = false,
     val syncing: Boolean,
+    /** Binned, deleted or unshared in Drive: the Unavailable banner (spec §4.3). */
+    val unavailable: Boolean = false,
     val needsConsent: Boolean,
     /** Subfolders shown as nested albums. */
     val children: List<ChildAlbum>
@@ -93,6 +100,7 @@ class TimelineViewModel @AssistedInject constructor(
     private val filter = savedState.getStateFlow(KEY_FILTER, MediaFilter.ALL)
     private val density = savedState.getStateFlow(KEY_DENSITY, GridDensity.Default)
     private val selection = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private val refreshing = MutableStateFlow(false)
 
     // Column changes keep the query (and so the loaded rows); only a new grouping replaces them.
     private val query: Flow<TimelineQuery> =
@@ -118,7 +126,7 @@ class TimelineViewModel @AssistedInject constructor(
     }
 
     /** Whether this is a Drive album, which needs no access to the phone's media. */
-    private val isDrive = albumId?.startsWith(DRIVE_PREFIX) == true
+    private val isDrive = albumId?.let(DriveAlbums::isDrive) == true
 
     private val access: Flow<MediaAccess> =
         if (isDrive) flowOf(MediaAccess.FULL) else mediaAccess.state
@@ -129,8 +137,9 @@ class TimelineViewModel @AssistedInject constructor(
     val uiState: StateFlow<TimelineUiState> =
         combine(
             combine(access, filter, density, layout, selection, ::TimelineUiState),
-            driveInfo
-        ) { state, drive -> state.copy(drive = drive) }
+            driveInfo,
+            refreshing
+        ) { state, drive, refreshing -> state.copy(drive = drive, refreshing = refreshing) }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -144,6 +153,25 @@ class TimelineViewModel @AssistedInject constructor(
     /** After a permission answer: re-read access and index whatever became visible. */
     fun refreshAccess() = deviceMediaSync.refresh()
 
+    /**
+     * Pull-to-refresh (spec §4.3): Drive changes for this album's account, or for Pictures every
+     * account and the phone. False when Drive could not be reached.
+     */
+    suspend fun refresh(): Boolean {
+        if (refreshing.value) return true
+        refreshing.value = true
+        return try {
+            driveAlbums.refresh(albumId)
+        } finally {
+            refreshing.value = false
+        }
+    }
+
+    /** "Make available offline" for this tracked Drive folder (spec §4.4). */
+    fun setOffline(offline: Boolean) {
+        val id = albumId ?: return
+        viewModelScope.launch { driveAlbums.setOffline(id, offline) }
+    }
     fun setFilter(value: MediaFilter) {
         savedState[KEY_FILTER] = value
     }
@@ -216,7 +244,6 @@ class TimelineViewModel @AssistedInject constructor(
         private const val STOP_TIMEOUT_MS = 5_000L
         private const val KEY_FILTER = "filter"
         private const val KEY_DENSITY = "density"
-        private const val DRIVE_PREFIX = "drive:"
     }
 }
 

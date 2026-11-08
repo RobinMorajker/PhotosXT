@@ -6,6 +6,11 @@
     <string name="filter_favorites">Favorites</string>
     <string name="filter_device">On this phone</string>
     <string name="filter_drive">Drive</string>
+    <string name="filter_offline">Offline</string>
+    <string name="action_keep_album_offline">Make available offline</string>
+    <string name="drive_unavailable">This Drive folder is no longer available. It may have been deleted, moved to the bin or unshared. Its photos stay here until you remove the album.</string>
+    <string name="action_relink">Relink</string>
+    <string name="refresh_failed">Couldn\'t reach Google Drive. Showing what\'s on this phone.</string>
     <string name="action_more">More options</string>
     <string name="action_merge_subfolders">Merge subfolders into this album</string>
     <string name="action_remove_drive_folder">Remove from PhotoXT</string>
@@ -13,7 +18,7 @@
     <string name="remove_drive_folder_body">Its photos and videos leave PhotoXT, with their thumbnails and downloaded copies. Nothing changes in Google Drive.</string>
     <string name="action_remove">Remove</string>
     <string name="action_cancel">Cancel</string>
-    <string name="drive_syncing">Adding from Google Drive…</string>
+    <string name="drive_syncing">Syncing with Google Drive…</string>
     <string name="drive_needs_consent">Google Drive needs your permission again. Reconnect it from the Albums tab.</string>
     <string name="filter_empty_title">Nothing here</string>
     <string name="filter_empty_body">No photos or videos match this filter.</string>

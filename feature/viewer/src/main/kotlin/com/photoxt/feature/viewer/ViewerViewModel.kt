@@ -12,8 +12,11 @@ import com.photoxt.core.database.MediaListQuery
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.database.positionOf
 import com.photoxt.core.database.viewerItems
+import com.photoxt.core.datastore.MobileOriginals
+import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.media.BlurHash
 import com.photoxt.core.media.DriveOriginals
+import com.photoxt.core.media.DriveThumbnails
 import com.photoxt.core.media.GeoPoint
 import com.photoxt.core.media.ImageTraits
 import com.photoxt.core.media.ImageTraitsReader
@@ -24,19 +27,25 @@ import com.photoxt.core.model.DisplayMode
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.ViewerStart
+import com.photoxt.core.sync.DeviceConditions
+import com.photoxt.core.sync.OfflinePins
 import com.photoxt.core.ui.heroSourceKey
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** A BlurHash decoded to [pixels] (ARGB) of [width] × [height]. */
@@ -45,7 +54,10 @@ class Blur(val width: Int, val height: Int, val pixels: IntArray)
 /** What the details sheet shows for one item. */
 data class ViewerDetails(val item: ViewerItem, val folder: String?, val media: MediaDetails)
 
-/** The viewer of one grid's items, starting at [start] (spec §4.5). */
+/**
+ * The viewer of one grid's items, starting at [start] (spec §4.5). Drive photos follow the cache
+ * rules of spec §4.4: data saver on mobile data, prefetch of the neighbours, offline pins.
+ */
 @HiltViewModel(assistedFactory = ViewerViewModel.Factory::class)
 class ViewerViewModel @AssistedInject constructor(
     @Assisted val start: ViewerStart,
@@ -53,7 +65,11 @@ class ViewerViewModel @AssistedInject constructor(
     private val traitsReader: ImageTraitsReader,
     private val detailsReader: MediaDetailsReader,
     private val session: ViewerSession,
-    private val originals: DriveOriginals
+    private val originals: DriveOriginals,
+    private val thumbnails: DriveThumbnails,
+    private val pins: OfflinePins,
+    private val settings: SettingsStore,
+    private val conditions: DeviceConditions
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -110,8 +126,74 @@ class ViewerViewModel @AssistedInject constructor(
     }
 
     /** A Drive photo's preview from an earlier opening, shown until the full file is here. */
-    suspend fun previewOf(item: ViewerItem): java.io.File? =
+    suspend fun previewOf(item: ViewerItem): File? =
         item.drive { fileId, version -> originals.preview(fileId, version) }
+
+    /**
+     * Data saver (spec §4.4): on a metered network, unless originals always load, the rule that
+     * holds Drive originals back; null when they load as on Wi-Fi.
+     */
+    val dataSaver: StateFlow<MobileOriginals?> =
+        combine(conditions.metered, settings.settings) { metered, all ->
+            all.storage.mobileOriginals.takeIf { metered && it != MobileOriginals.ALWAYS }
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(STOP_MS),
+            // Until the settings are read: the default rule, so nothing loads early.
+            MobileOriginals.WIFI_ONLY.takeIf { conditions.metered.value }
+        )
+
+    private val requested = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Items whose original the user asked for over mobile data (*Load original*). */
+    val loadRequested: StateFlow<Set<String>> = requested.asStateFlow()
+
+    /**
+     * *Load original* for [item]; with [always] ("Always" in data saver's question), originals
+     * load over mobile data from now on.
+     */
+    fun loadOriginal(item: ViewerItem, always: Boolean = false) {
+        requested.update { it + item.id }
+        if (always) {
+            viewModelScope.launch {
+                settings.updateStorage { it.copy(mobileOriginals = MobileOriginals.ALWAYS) }
+            }
+        }
+    }
+
+    /** Whether [item]'s full file is on the phone already, so data saver does not apply. */
+    suspend fun hasLocalOriginal(item: ViewerItem): Boolean = originals.localFile(item.id) != null
+
+    /** The preview data saver shows: one made before, else Drive's own at about 1,600 px. */
+    suspend fun savingPreviewOf(item: ViewerItem): File? = previewOf(item)
+        ?: runCatching { thumbnails.preview(item.id) }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull()
+
+    /**
+     * Fetches the originals of the Drive photos within the prefetch count of [page] (spec §4.4):
+     * on Wi-Fi, or on mobile data only when originals always load. [itemAt] reads the pager.
+     */
+    fun prefetchAround(page: Int, itemAt: (Int) -> ViewerItem?) {
+        viewModelScope.launch {
+            val storage = settings.current().storage
+            if (storage.prefetch <= 0 || dataSaver.value != null) return@launch
+            val metered = conditions.metered.value
+            if (metered && storage.mobileOriginals != MobileOriginals.ALWAYS) return@launch
+            val ids = (1..storage.prefetch).flatMap { listOf(page + it, page - it) }
+                .mapNotNull(itemAt)
+                .filter { it.source == SourceType.DRIVE && it.kind == MediaKind.IMAGE }
+                .map { it.id }
+            originals.prefetch(ids)
+        }
+    }
+
+    /** Whether Drive item [id] is kept offline (spec §4.4, offline pins). */
+    fun pinned(id: String): Flow<Boolean> = pins.pinned(id)
+
+    fun setPinned(item: ViewerItem, pinned: Boolean) {
+        viewModelScope.launch { pins.setPinned(listOf(item.id), pinned) }
+    }
 
     /**
      * A Drive item's BlurHash as tiny ARGB pixels at the photo's aspect ratio (width, height,

@@ -2,10 +2,13 @@ package com.photoxt.feature.viewer
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.media.ImageTraits
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.ViewerStart
 import java.time.Instant
 import java.time.ZoneId
@@ -28,6 +31,10 @@ internal fun chromeActions(
 ): ChromeActions {
     val start = viewModel.start
     val uri = current?.contentUri
+    val drive = current?.takeIf { it.source == SourceType.DRIVE }
+    val pinned = drive?.let { item ->
+        remember(item.id) { viewModel.pinned(item.id) }.collectAsStateWithLifecycle(false).value
+    }
     return ChromeActions(
         onBack = close,
         onDisplayMode = viewModel::setDisplayMode,
@@ -57,7 +64,9 @@ internal fun chromeActions(
         },
         onPanorama = traits?.panorama?.let { panorama ->
             uri?.let { { navigation.onPanorama(it, panorama) } }
-        }
+        },
+        offline = pinned,
+        onOffline = { on -> drive?.let { viewModel.setPinned(it, on) } }
     )
 }
 

@@ -4,12 +4,16 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.core.net.toUri
 import com.photoxt.core.database.ViewerItem
+import com.photoxt.core.datastore.MobileOriginals
 import com.photoxt.core.media.ImageTraits
 import com.photoxt.core.media.Original
 import com.photoxt.core.model.DisplayMode
@@ -60,7 +65,11 @@ internal class PageActions(
     val onTap: () -> Unit,
     val onLongPress: () -> Unit,
     val onMotionEnded: () -> Unit,
-    val onPlay: () -> Unit
+    val onPlay: () -> Unit,
+    /** Data saver: load this Drive photo's original over mobile data. */
+    val onLoadOriginal: () -> Unit = {},
+    /** Data saver's question answered "Always". */
+    val onAlwaysOriginals: () -> Unit = {}
 )
 
 /**
@@ -101,7 +110,11 @@ internal fun ImagePage(
             .onSizeChanged { pageSize = it.toSize() }
     ) {
         val file = (drive?.original as? Original.Ready)?.file
-        if (drive != null && file == null) DriveLoading(drive, mode, Modifier.fillMaxSize())
+        if (drive != null &&
+            file == null
+        ) {
+            DriveLoading(drive, mode, actions, Modifier.fillMaxSize())
+        }
         ZoomableAsyncImage(
             // ponytail: software tiles; on a 200 MP photo each 2040 × 1530 tile uploads for
             // 10–18 ms on the render thread (ZoomBenchmark), but hardware tiles measured no better
@@ -166,12 +179,28 @@ private fun ZoomableState.shownBounds(): Rect? {
 
 private const val ZOOMED = 0.01f
 
-/** What a Drive photo's page needs while its full file comes (spec §4.4). */
-internal class DrivePage(val original: Original, val preview: File?, val blur: Blur?)
+/**
+ * What a Drive photo's page needs while its full file comes (spec §4.4). With [saver] set, data
+ * saver holds the original back: the preview shows with *Load original*.
+ */
+internal class DrivePage(
+    val original: Original,
+    val preview: File?,
+    val blur: Blur?,
+    val saver: MobileOriginals? = null
+)
 
-/** BlurHash under the thumbnail, and download progress, until the Drive file is here. */
+/**
+ * BlurHash under the thumbnail, and download progress, until the Drive file is here; or data
+ * saver's *Load original* (spec §4.4).
+ */
 @Composable
-private fun DriveLoading(page: DrivePage, mode: DisplayMode, modifier: Modifier = Modifier) {
+private fun DriveLoading(
+    page: DrivePage,
+    mode: DisplayMode,
+    actions: PageActions,
+    modifier: Modifier = Modifier
+) {
     Box(modifier) {
         val blur = page.blur
         if (blur != null) {
@@ -189,6 +218,18 @@ private fun DriveLoading(page: DrivePage, mode: DisplayMode, modifier: Modifier 
                 contentScale = mode.contentScale,
                 modifier = Modifier.fillMaxSize()
             )
+        }
+        val saver = page.saver
+        if (saver != null) {
+            SaverPrompt(
+                ask = saver == MobileOriginals.ASK,
+                actions = actions,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = PromptAboveBar)
+            )
+            return@Box
         }
         when (val original = page.original) {
             is Original.Loading -> LinearProgressIndicator(
@@ -212,3 +253,38 @@ private fun DriveLoading(page: DrivePage, mode: DisplayMode, modifier: Modifier 
         }
     }
 }
+
+/** On mobile data: the original loads on request; with [ask], "Always" stops asking. */
+@Composable
+private fun SaverPrompt(ask: Boolean, actions: PageActions, modifier: Modifier = Modifier) {
+    Surface(
+        shape = MaterialTheme.shapes.extraLarge,
+        color = Color.Black.copy(alpha = PROMPT_ALPHA),
+        contentColor = Color.White,
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            if (ask) {
+                Text(
+                    text = stringResource(R.string.saver_question),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(start = 8.dp)
+                )
+            }
+            TextButton(onClick = actions.onLoadOriginal) {
+                Text(stringResource(R.string.action_load_original), color = Color.White)
+            }
+            if (ask) {
+                TextButton(onClick = actions.onAlwaysOriginals) {
+                    Text(stringResource(R.string.action_always), color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+private val PromptAboveBar = 88.dp
+private const val PROMPT_ALPHA = 0.6f

@@ -14,6 +14,10 @@
     <string name="action_open_with">Open with</string>
     <string name="action_set_as">Set as</string>
     <string name="action_copy">Copy to clipboard</string>
+    <string name="action_keep_offline">Keep offline</string>
+    <string name="action_load_original">Load original</string>
+    <string name="action_always">Always</string>
+    <string name="saver_question">On mobile data</string>
     <string name="copied">Copied</string>
 
     <string name="mode_fit">Fit</string>

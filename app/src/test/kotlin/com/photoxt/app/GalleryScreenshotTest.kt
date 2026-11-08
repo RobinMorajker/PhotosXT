@@ -8,6 +8,10 @@ import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.photoxt.core.database.AccountEntity
+import com.photoxt.core.media.AccountStorage
+import com.photoxt.core.media.AlbumStorage
+import com.photoxt.core.media.StorageBreakdown
+import com.photoxt.core.media.StorageUsage
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.ui.GridDensity
 import com.photoxt.feature.albums.AlbumTile
@@ -19,6 +23,10 @@ import com.photoxt.feature.albums.DeviceFolder
 import com.photoxt.feature.albums.DriveBrowserContent
 import com.photoxt.feature.albums.DriveBrowserUiState
 import com.photoxt.feature.albums.DriveStatus
+import com.photoxt.feature.library.StorageActions
+import com.photoxt.feature.library.StorageContent
+import com.photoxt.feature.library.StorageUiState
+import com.photoxt.feature.timeline.DriveAlbumInfo
 import com.photoxt.feature.timeline.TimelineCallbacks
 import com.photoxt.feature.timeline.TimelineContent
 import com.photoxt.feature.timeline.TimelineUiState
@@ -203,5 +211,74 @@ class GalleryScreenshotTest {
             ),
             actions = object : BrowserActions {}
         )
+    }
+
+    /** Spec §4.3, lost access: the Unavailable banner with Relink and Remove, items kept. */
+    @Test
+    fun driveAlbumUnavailable() = capture("album_unavailable") {
+        val rows = remember { flowOf(PagingData.from(GalleryFakes.cells)) }
+            .collectAsLazyPagingItems()
+        TimelineContent(
+            title = "Holidays",
+            state = TimelineUiState(
+                MediaAccess.FULL,
+                layout = GalleryFakes.layout,
+                drive = DriveAlbumInfo(
+                    accountId = "a",
+                    isRoot = true,
+                    merge = false,
+                    syncing = false,
+                    unavailable = true,
+                    needsConsent = false,
+                    children = emptyList()
+                )
+            ),
+            rows = rows,
+            permissions = emptyArray(),
+            callbacks = TimelineCallbacks(),
+            empty = {},
+            onBack = {}
+        )
+    }
+
+    @Test
+    fun storage() = capture("storage") { Storage() }
+
+    /** Spec §7: the Storage screen's sizes and settings hold at 200% text. */
+    @Test
+    @Config(qualifiers = PHONE_QUALIFIERS, fontScale = 2f)
+    fun storageAt200PercentText() = capture("storage_200") { Storage() }
+
+    @Composable
+    private fun Storage() {
+        val holidays = StorageBreakdown(
+            thumbnails = 38L * MB,
+            previews = 120L * MB,
+            originals = 812L * MB,
+            offline = 230L * MB,
+            video = 365L * MB
+        )
+        StorageContent(
+            state = StorageUiState(
+                usage = StorageUsage(
+                    listOf(
+                        AccountStorage(
+                            "a",
+                            "robin@example.com",
+                            listOf(
+                                AlbumStorage("drive:a:1", "Holidays", 2_001, holidays),
+                                AlbumStorage("drive:a:2", "Family", 320, StorageBreakdown(9L * MB))
+                            )
+                        )
+                    ),
+                    removed = 4L * MB
+                )
+            ),
+            actions = StorageActions()
+        )
+    }
+
+    private companion object {
+        const val MB = 1024L * 1024
     }
 }

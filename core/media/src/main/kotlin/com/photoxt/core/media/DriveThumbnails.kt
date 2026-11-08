@@ -75,6 +75,21 @@ class DriveThumbnails @Inject constructor(
     fun enqueue(mediaId: String, priority: ThumbnailPriority): Deferred<Unit> =
         queue.enqueue(mediaId, priority)
 
+    /**
+     * A Drive photo's preview for data saver (spec §4.4): Drive's own rendering at about
+     * [PREVIEW_PX], a small download instead of the original, kept as the item's preview. Null
+     * when Drive has no rendering of it; throws when Drive cannot be reached.
+     */
+    suspend fun preview(mediaId: String): File? = withContext(Dispatchers.IO) {
+        val item = dao.driveItem(mediaId) ?: return@withContext null
+        val file = store.preview(item.remoteId, item.remoteVersion)
+        if (file.exists()) return@withContext file
+        val link = item.thumbnailLink ?: return@withContext null
+        val bitmap = fromLink(item, link, PREVIEW_PX) ?: return@withContext null
+        ThumbnailStore.writeWebp(file, bitmap)
+        file
+    }
+
     private suspend fun make(mediaId: String) {
         val item = dao.driveItem(mediaId) ?: return
         val file = store.grid(item.remoteId, item.remoteVersion)
@@ -105,16 +120,16 @@ class DriveThumbnails @Inject constructor(
         }
     }
 
-    private suspend fun fromLink(item: DriveItem, link: String): Bitmap? {
+    private suspend fun fromLink(item: DriveItem, link: String, px: Int = LINK_SIZE_PX): Bitmap? {
         val bytes = try {
-            download(item.accountId, sized(link))
+            download(item.accountId, sized(link, px))
         } catch (e: DriveHttpException) {
             if (e.code !in STALE_LINK_CODES) throw e
             // The link expired: ask Drive for a new one, once.
             val fresh = http.api.get(DriveAccount(item.accountId), item.remoteId, LINK_FIELDS)
             val renewed = fresh.thumbnailLink?.takeIf { fresh.hasThumbnail }
             dao.setThumbnailLink(item.id, renewed)
-            renewed?.let { download(item.accountId, sized(it)) } ?: return null
+            renewed?.let { download(item.accountId, sized(it, px)) } ?: return null
         }
         return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     }
@@ -183,6 +198,7 @@ class DriveThumbnails @Inject constructor(
         const val TAG = "DriveThumbnails"
         const val WORKERS = 6
         const val LINK_SIZE_PX = 512
+        const val PREVIEW_PX = 1600
         const val GRID_SHORT_EDGE_PX = 384
         const val BLURHASH_PX = 32
         const val EXIF_BYTES = 128 * 1024L
@@ -194,11 +210,11 @@ class DriveThumbnails @Inject constructor(
 
         fun now() = System.currentTimeMillis()
 
-        /** Drive's thumbnail link at about [LINK_SIZE_PX] on the long edge. */
-        fun sized(link: String): String = if (SIZE_SUFFIX.containsMatchIn(link)) {
-            link.replace(SIZE_SUFFIX, "=s$LINK_SIZE_PX")
+        /** Drive's thumbnail link at about [px] on the long edge. */
+        fun sized(link: String, px: Int): String = if (SIZE_SUFFIX.containsMatchIn(link)) {
+            link.replace(SIZE_SUFFIX, "=s$px")
         } else {
-            "$link=s$LINK_SIZE_PX"
+            "$link=s$px"
         }
 
         fun Bitmap.toGridSize(): Bitmap {

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_storage">Storage</string>
+    <string name="library_storage_body">Drive downloads, offline items and data saver</string>
+    <string name="action_back">Back</string>
+
+    <!-- The Storage screen (spec §4.4). -->
+    <string name="storage_title">Storage</string>
+    <string name="storage_measuring">Measuring…</string>
+    <!-- %1$s is a size such as "1.2 GB". -->
+    <string name="storage_total">%1$s on this phone</string>
+    <string name="storage_thumbnails">Thumbnails</string>
+    <string name="storage_previews">Previews</string>
+    <string name="storage_originals">Downloaded originals</string>
+    <string name="storage_offline">Kept offline</string>
+    <string name="storage_video">Video cache</string>
+    <string name="storage_removed">Removed from Drive, deleted after 7 days</string>
+    <string name="storage_free_up_body">Free up now deletes downloaded originals, previews and cached video. Thumbnails and items kept offline stay.</string>
+    <string name="storage_free_up">Free up now</string>
+    <string name="storage_clear_album">Clear cache for this album</string>
+    <string name="storage_freed">Freed %1$s</string>
+    <string name="storage_no_drive">No Drive albums yet. What PhotoXT keeps for your Drive albums shows here.</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
+    <plurals name="storage_album_line">
+        <item quantity="one">%1$,d item · %2$s</item>
+        <item quantity="other">%1$,d items · %2$s</item>
+    </plurals>
+
+    <!-- Cache settings (spec §4.21, accounts and storage). -->
+    <string name="storage_settings">Downloads and data</string>
+    <string name="storage_retention">Keep downloaded originals</string>
+    <plurals name="storage_retention_days">
+        <item quantity="one">%1$d day after last opened</item>
+        <item quantity="other">%1$d days after last opened</item>
+    </plurals>
+    <string name="storage_retention_always">Until space is freed</string>
+    <string name="storage_cache_cap">Limit for downloaded originals</string>
+    <string name="storage_preview_cap">Limit for previews</string>
+    <string name="storage_prefetch">Load ahead in the viewer, on Wi-Fi</string>
+    <plurals name="storage_prefetch_count">
+        <item quantity="one">%1$d photo each side</item>
+        <item quantity="other">%1$d photos each side</item>
+    </plurals>
+    <string name="storage_prefetch_off">Off</string>
+    <string name="storage_mobile">Load full-size originals</string>
+    <string name="storage_mobile_always">Always</string>
+    <string name="storage_mobile_wifi">On Wi-Fi only (preview on mobile data)</string>
+    <string name="storage_mobile_ask">Ask on mobile data</string>
+</resources>

@@ -48,6 +48,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil3.compose.AsyncImage
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.media.ImageTraits
+import com.photoxt.core.media.Original
 import com.photoxt.core.media.Panorama
 import com.photoxt.core.model.DisplayMode
 import com.photoxt.core.model.MediaKind
@@ -56,6 +57,7 @@ import com.photoxt.core.model.ViewerStart
 import com.photoxt.core.ui.HdrWindowEffect
 import com.photoxt.core.ui.ImmersiveEffect
 import com.photoxt.core.ui.LocalMediaHero
+import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
@@ -180,7 +182,10 @@ private fun ViewerBody(parts: ViewerParts, close: () -> Unit, navigation: Viewer
     val viewModel = parts.viewModel
     val ui = remember { ViewerUi() }
     val transition = parts.transition
-    LaunchedEffect(parts.pager.settledPage) { ui.motion = null }
+    LaunchedEffect(parts.pager.settledPage) {
+        ui.motion = null
+        viewModel.prefetchAround(parts.pager.settledPage) { parts.items.peekOrNull(it) }
+    }
     val current = parts.items.peekOrNull(parts.pager.currentPage)
     val traits = current?.let { viewModel.traitsOf(it).collectAsStateWithLifecycle().value }
     HdrWindowEffect(traits?.ultraHdr == true && !transition.flying)
@@ -260,7 +265,9 @@ private fun ViewerPages(
                 if (viewModel.traitsOf(item).value.motionVideo != null) ui.motion = item.id
             },
             onMotionEnded = { ui.motion = null },
-            onPlay = { navigation.onPlay(item.id) }
+            onPlay = { navigation.onPlay(item.id) },
+            onLoadOriginal = { viewModel.loadOriginal(item) },
+            onAlwaysOriginals = { viewModel.loadOriginal(item, always = true) }
         )
         val description = describeItem(item)
         val pageModifier = Modifier
@@ -277,23 +284,37 @@ private fun ViewerPages(
                 handle = handle,
                 actions = actions,
                 modifier = pageModifier,
-                drive = if (item.source == SourceType.DRIVE) {
-                    val original by viewModel.originalOf(item).collectAsStateWithLifecycle()
-                    val blur by produceState<Blur?>(null, item.id) {
-                        value = viewModel.blurOf(item)
-                    }
-                    val preview by produceState<java.io.File?>(null, item.id) {
-                        value = viewModel.previewOf(item)
-                    }
-                    DrivePage(original, preview, blur)
-                } else {
-                    null
-                }
+                drive = if (item.source == SourceType.DRIVE) drivePage(viewModel, item) else null
             )
 
             MediaKind.VIDEO -> VideoPage(item, mode, handle, actions, pageModifier)
         }
     }
+}
+
+/**
+ * A Drive photo's page state (spec §4.4): the original from the phone or downloading, or with
+ * data saver on mobile data the preview until *Load original*.
+ */
+@Composable
+private fun drivePage(viewModel: ViewerViewModel, item: ViewerItem): DrivePage {
+    val saver by viewModel.dataSaver.collectAsStateWithLifecycle()
+    val requested by viewModel.loadRequested.collectAsStateWithLifecycle()
+    val local by produceState<Boolean?>(null, item.id) {
+        value = viewModel.hasLocalOriginal(item)
+    }
+    val blur by produceState<Blur?>(null, item.id) { value = viewModel.blurOf(item) }
+    // Until the phone's copy is checked, nothing loads: data saver must not be bypassed.
+    val saving = local != true && saver != null && item.id !in requested
+    val original = if (saving || local == null) {
+        Original.Loading(0f)
+    } else {
+        viewModel.originalOf(item).collectAsStateWithLifecycle().value
+    }
+    val preview by produceState<File?>(null, item.id, saving) {
+        value = if (saving) viewModel.savingPreviewOf(item) else viewModel.previewOf(item)
+    }
+    return DrivePage(original, preview, blur, saver.takeIf { saving && local == false })
 }
 
 /** Down closes the viewer once far or fast enough, otherwise springs back; up opens details. */
@@ -345,7 +366,10 @@ internal data class ChromeActions(
     val onCopy: () -> Unit,
     val onPlay: (() -> Unit)?,
     val onMotion: (() -> Unit)?,
-    val onPanorama: (() -> Unit)?
+    val onPanorama: (() -> Unit)?,
+    /** Whether a Drive item is kept offline; null for the phone's own items. */
+    val offline: Boolean? = null,
+    val onOffline: (Boolean) -> Unit = {}
 )
 
 /** Where the viewer sits and its pages' reports, read by gestures and flights. */

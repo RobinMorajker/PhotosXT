@@ -48,26 +48,35 @@ data class DriveBrowserUiState(
     val folders: List<BrowserFolder> = emptyList(),
     val loading: Boolean = false,
     val error: Boolean = false,
-    val merge: Boolean = false
+    val merge: Boolean = false,
+    /** Picking the folder an unavailable album follows from now on (Relink), not adding one. */
+    val relinking: Boolean = false
 ) {
     /** The folder that "Add" would add: the innermost opened one. */
     val current: BrowserFolder? get() = path.lastOrNull()
 }
 
-/** The in-app Drive folder browser of one account: My Drive, shared, starred and search. */
+/**
+ * The in-app Drive folder browser of one account: My Drive, shared, starred and search. With
+ * [relinkAlbumId] it picks the folder that unavailable album follows from now on (spec §4.3).
+ */
 @HiltViewModel(assistedFactory = DriveBrowserViewModel.Factory::class)
 class DriveBrowserViewModel @AssistedInject constructor(
-    @Assisted val accountId: String,
+    @Assisted(ACCOUNT) val accountId: String,
+    @Assisted(RELINK) private val relinkAlbumId: String?,
     private val auth: DriveAuth,
     private val http: DriveHttp,
     private val sync: DriveSync
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
-        fun create(accountId: String): DriveBrowserViewModel
+        fun create(
+            @Assisted(ACCOUNT) accountId: String,
+            @Assisted(RELINK) relinkAlbumId: String?
+        ): DriveBrowserViewModel
     }
 
-    private val state = MutableStateFlow(DriveBrowserUiState())
+    private val state = MutableStateFlow(DriveBrowserUiState(relinking = relinkAlbumId != null))
     val uiState: StateFlow<DriveBrowserUiState> = state.asStateFlow()
     private var nextPage: String? = null
     private var loadJob: Job? = null
@@ -130,10 +139,18 @@ class DriveBrowserViewModel @AssistedInject constructor(
 
     fun setMerge(merge: Boolean) = state.update { it.copy(merge = merge) }
 
-    /** Tracks the current folder; returns its album id. */
+    /**
+     * Tracks the current folder, or relinks the album to it; returns the album id. Null when
+     * there is no folder open, or the folder is another album already.
+     */
     suspend fun addCurrent(): String? {
         val folder = state.value.current ?: return null
-        return sync.addFolder(accountId, folder.id, folder.name, folder.driveId, state.value.merge)
+        val relink = relinkAlbumId
+        return if (relink != null) {
+            relink.takeIf { sync.relink(it, folder.id, folder.driveId) }
+        } else {
+            sync.addFolder(accountId, folder.id, folder.name, folder.driveId, state.value.merge)
+        }
     }
 
     fun reload() {
@@ -164,6 +181,8 @@ class DriveBrowserViewModel @AssistedInject constructor(
 
     private companion object {
         const val TAG = "DriveBrowser"
+        const val ACCOUNT = "account"
+        const val RELINK = "relink"
     }
 }
 

@@ -12,23 +12,33 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** The network and battery facts Drive work depends on (spec §4.1 status chips, §4.3). */
+/** The network and battery facts Drive work depends on (spec §4.1 status chips, §4.3, §4.4). */
 @Singleton
 class DeviceConditions @Inject constructor(@param:ApplicationContext private val context: Context) {
     private val connected = MutableStateFlow(true)
+    private val meteredNetwork = MutableStateFlow(false)
 
     /** Whether the phone has a network with internet. */
     val online: StateFlow<Boolean> = connected.asStateFlow()
+
+    /** Whether that network costs data (mobile data, a metered Wi-Fi): data saver applies. */
+    val metered: StateFlow<Boolean> = meteredNetwork.asStateFlow()
 
     /** Call once, from `Application.onCreate` (through [DriveSync.start]). */
     fun start() {
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return
         connected.value = connectivity.activeNetwork != null
+        meteredNetwork.value = connectivity.isActiveNetworkMetered
         connectivity.registerDefaultNetworkCallback(
             object : ConnectivityManager.NetworkCallback() {
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                     connected.value =
                         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    meteredNetwork.value =
+                        !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
+                        !caps.hasCapability(
+                            NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED
+                        )
                 }
 
                 override fun onLost(network: Network) {

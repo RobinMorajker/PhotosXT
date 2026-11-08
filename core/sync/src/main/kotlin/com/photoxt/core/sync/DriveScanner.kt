@@ -14,19 +14,26 @@ import com.photoxt.core.drive.FOLDER_MIME
 import com.photoxt.core.drive.ImageMetadata
 import com.photoxt.core.drive.LIST_FIELDS
 import com.photoxt.core.drive.driveLiteral
+import com.photoxt.core.drive.driveStatus
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.DateGrouping
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
-/** What a scan found. */
-data class ScanResult(val folders: Int, val items: Int, val removed: Int)
+/** What a scan found; [unavailable] when the tracked folder itself is gone from Drive. */
+data class ScanResult(
+    val folders: Int,
+    val items: Int,
+    val removed: Int,
+    val unavailable: Boolean = false
+)
 
 /** The album id of Drive folder [folderId] seen by [accountId]. */
 fun driveAlbumId(accountId: String, folderId: String): String = "drive:$accountId:$folderId"
@@ -34,21 +41,29 @@ fun driveAlbumId(accountId: String, folderId: String): String = "drive:$accountI
 /** The media id of Drive file [fileId] seen by [accountId]. */
 fun driveMediaId(accountId: String, fileId: String): String = "drive:$accountId:$fileId"
 
+/** How long the files of an item removed in Drive stay, so a restore finds them (spec §4.3). */
+const val ORPHAN_GRACE_MS = 7L * 24 * 60 * 60 * 1000
+
 /**
- * The initial scan of a tracked Drive folder (spec §4.3, §5.5). It takes the Changes API
- * position first, so nothing changed during the scan is missed, then walks the tree breadth-first
- * with `files.list` (1,000 a page, minimal fields, shared drives included), writing each page in
- * one transaction so the album fills as pages arrive. Folders become nested albums, or one album
+ * The scan of a tracked Drive folder (spec §4.3, §5.5). It takes the Changes API position first,
+ * so nothing changed during the scan is missed, then walks the tree breadth-first with
+ * `files.list` (1,000 a page, minimal fields, shared drives included), writing each page in one
+ * transaction so the album fills as pages arrive. Folders become nested albums, or one album
  * when [TrackedFolderEntity.mergeSubfolders] is on; shortcuts count as their targets; files other
  * than photos and videos are ignored. Items and subfolders no longer there are removed at the
- * end. Running it again is harmless.
+ * end, their files kept for [ORPHAN_GRACE_MS]. A tracked folder binned or deleted in Drive, or no
+ * longer shared, turns [TrackedFolderState.UNAVAILABLE] and keeps its items. Running it again is
+ * harmless; incremental sync (DriveChanges) falls back to it when a tree's shape changes.
  */
 class DriveScanner @Inject constructor(
     private val http: DriveHttp,
-    private val database: PxtDatabase
+    private val database: PxtDatabase,
+    private val items: DriveItems,
+    private val clock: Clock
 ) {
     private val drive = database.driveDao()
     private val index = database.mediaIndexDao()
+    private val cache = database.driveCacheDao()
 
     suspend fun scan(
         tracked: TrackedFolderEntity,
@@ -57,7 +72,12 @@ class DriveScanner @Inject constructor(
         val account = DriveAccount(tracked.accountId)
         val token = http.api.startPageToken(account).startPageToken
         drive.saveFirstChangesToken(tracked.accountId, token)
-        val root = http.api.get(account, tracked.driveFolderId, "id,name")
+        val root = rootOf(account, tracked)
+        if (root == null) {
+            val state = TrackedFolderState.UNAVAILABLE
+            drive.setTrackedState(tracked.albumId, state, tracked.scannedAt)
+            return ScanResult(0, 0, 0, unavailable = true)
+        }
         val walk = Walk(tracked, zone)
         val pending = ArrayDeque(listOf(walk.folder(root.id, root.name, parent = null)))
         while (pending.isNotEmpty()) {
@@ -75,8 +95,20 @@ class DriveScanner @Inject constructor(
             } while (pageToken != null)
         }
         val removed = sweep(walk)
-        drive.setTrackedState(tracked.albumId, TrackedFolderState.READY, System.currentTimeMillis())
+        val now = clock.millis()
+        if (tracked.offline) cache.pinTree(tracked.albumId, now)
+        drive.setTrackedState(tracked.albumId, TrackedFolderState.READY, now)
         return ScanResult(walk.folders.size, walk.media.size, removed)
+    }
+
+    /** The tracked folder itself; null when Drive no longer has it (binned, gone, unshared). */
+    private suspend fun rootOf(account: DriveAccount, tracked: TrackedFolderEntity): DriveFile? {
+        val root = runCatching { http.api.get(account, tracked.driveFolderId, "id,name,trashed") }
+            .getOrElse { error ->
+                if (error.driveStatus == HTTP_NOT_FOUND) return null
+                throw error
+            }
+        return root.takeUnless { it.trashed }
     }
 
     /** A shortcut as its target, when the target is a folder or a photo or video. */
@@ -105,7 +137,7 @@ class DriveScanner @Inject constructor(
             val albums = (listOf(folder) + subfolders).mapNotNull { walk.album(it) }
             if (albums.isNotEmpty()) index.upsertAlbums(albums)
             drive.upsertFolders(subfolders.map { walk.row(it) } + walk.row(folder))
-            if (media.isNotEmpty()) index.upsertMedia(media)
+            items.write(walk.tracked.accountId, media)
         }
         return subfolders
     }
@@ -119,7 +151,7 @@ class DriveScanner @Inject constructor(
             it.folderId
         }.filterNot { it in walk.folders }
         database.withTransaction {
-            goneItems.chunked(MAX_SQL_VARIABLES).forEach { index.deleteMedia(it) }
+            cache.removeItems(goneItems, purgeAfter = clock.millis() + ORPHAN_GRACE_MS)
             goneAlbums.chunked(MAX_SQL_VARIABLES).forEach { drive.deleteAlbums(it) }
             goneFolders.chunked(MAX_SQL_VARIABLES).forEach { drive.deleteFolders(rootId, it) }
         }
@@ -232,6 +264,7 @@ private fun DriveFile.captureTime(zone: ZoneId): Long =
 private fun ImageMetadata.camera(): String? =
     listOfNotNull(cameraMake, cameraModel).joinToString(" ").ifBlank { null }
 
+private const val HTTP_NOT_FOUND = 404
 private const val QUARTER_TURN = 90
 private const val FULL_TURN = 360
 private val EXIF_TIME = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")

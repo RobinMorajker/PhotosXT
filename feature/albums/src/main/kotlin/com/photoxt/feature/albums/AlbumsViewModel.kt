@@ -24,6 +24,7 @@ import com.photoxt.core.model.TrackedFolderState
 import com.photoxt.core.sync.DriveSync
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -64,7 +65,9 @@ data class AlbumTile(
 data class AlbumsUiState(
     val access: MediaAccess,
     val albums: List<AlbumTile>? = null,
-    val accounts: List<AccountEntity> = emptyList()
+    val accounts: List<AccountEntity> = emptyList(),
+    /** Pull-to-refresh is running. */
+    val refreshing: Boolean = false
 ) {
     /** Accounts whose Drive grant lapsed: the "Reconnect Google Drive" banner. */
     val reconnect: List<AccountEntity> get() = accounts.filter { it.needsConsent }
@@ -81,14 +84,17 @@ class AlbumsViewModel @Inject constructor(
 ) : ViewModel() {
     val permissions: Array<String> get() = mediaAccess.permissions
 
+    private val refreshing = MutableStateFlow(false)
+
     val uiState: StateFlow<AlbumsUiState> =
         combine(
             mediaAccess.state,
             albumDao.albums(),
             googleAccounts.accounts,
-            driveSync.online
-        ) { access, albums, accounts, online ->
-            AlbumsUiState(access, arrange(albums, accounts, online), accounts)
+            driveSync.online,
+            refreshing
+        ) { access, albums, accounts, online, refreshing ->
+            AlbumsUiState(access, arrange(albums, accounts, online), accounts, refreshing)
         }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -97,6 +103,21 @@ class AlbumsViewModel @Inject constructor(
 
     /** After a permission answer: re-read access and index whatever became visible. */
     fun refreshAccess() = deviceMediaSync.refresh()
+
+    /**
+     * Pull-to-refresh (spec §4.3): the phone's folders and every account's Drive changes. False
+     * when Drive could not be reached.
+     */
+    suspend fun refresh(): Boolean {
+        if (refreshing.value) return true
+        refreshing.value = true
+        return try {
+            deviceMediaSync.refresh()
+            driveSync.refresh()
+        } finally {
+            refreshing.value = false
+        }
+    }
 
     /** Google's account chooser over [activity]; the added account, or why there is none. */
     suspend fun signIn(activity: Activity): SignInResult = googleAccounts.signIn(activity)

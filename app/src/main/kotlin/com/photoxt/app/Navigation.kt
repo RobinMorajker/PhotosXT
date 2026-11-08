@@ -75,9 +75,16 @@ enum class TopLevelTab(
 @Serializable
 data class AlbumKey(val albumId: String, val title: String) : NavKey
 
-/** The Drive folder browser of one Google account (spec §4.2), on the Albums stack. */
+/**
+ * The Drive folder browser of one Google account (spec §4.2), on the Albums stack. With
+ * [relinkAlbumId] it picks the folder that unavailable album follows (Relink, spec §4.3).
+ */
 @Serializable
-data class DriveBrowserKey(val accountId: String) : NavKey
+data class DriveBrowserKey(val accountId: String, val relinkAlbumId: String? = null) : NavKey
+
+/** The Storage screen (spec §4.4), on the Library stack. */
+@Serializable
+data object StorageKey : NavKey
 
 // Full-screen destinations shown over the tabs, so the grid stays underneath (spec §4.5): the
 // viewer flies back into it, and closing any of them returns to exactly where the user was.
