@@ -143,7 +143,7 @@
 **Album options**
 
 - Cover: any item.
-- Sort: date taken, date modified, name, size, or custom drag order.
+- Sort: how its items are ordered (see **Sorting** below).
 - Visibility and storage: hide from Pictures, hide the album entirely, group albums, pin, make the whole album available offline, and set per-album visibility.
 - List view: grid or list, pinned albums first, and a source badge on each (phone, Drive, shared, public).
 
@@ -155,6 +155,24 @@
 - A fast scroller shows a date bubble.
 - Filter chips: All, Photos, Videos, Favorites, Device, Drive, Offline.
 - Similar shots and bursts can collapse into a stack.
+
+**Sorting**
+
+The lists below have *Sort* in their overflow menu.
+
+| List | Sort by | Default |
+|---|---|---|
+| Albums tab; nested albums and album groups follow it | Custom order, Name, Newest item, Date created, Item count, Total size | Newest item, newest first |
+| Items in an album (device, Drive, virtual, smart or shared), and the Library's Favorites, Videos, Screenshots and Offline lists | Date taken, Date added, Date modified, Name, Size, Custom order | Date taken, newest first |
+| Pictures timeline | Date taken, Date added | Date taken, newest first |
+
+- **Direction.** Every sort except Custom order runs either way. A newly picked sort starts in its natural direction: newest first for dates, A to Z for names, largest first for counts and sizes. A toggle reverses it.
+- **Scope.** The Albums tab and the Pictures timeline each keep one sort. Every album and Library list remembers its own sort; *Apply to all albums* in the Sort sheet gives every album, new ones included, the same sort.
+- **Pins stay on top.** Pinned albums stay above the sorted albums in their own drag order (§4.8), and pinned items stay at the top of their album, whatever the sort. Camera and Screenshots are pinned automatically the first time they appear, so they start at the top; once unpinned, they sort like any other album.
+- **Custom order** is set by dragging, or with *Move up* and *Move down* actions for TalkBack and switch access. It starts from the order on screen when it is picked, and new albums and items join at the top.
+- **Name** ignores case and puts numbers in natural order (IMG_2 before IMG_10). Albums use the name shown, including an in-app rename.
+- **Dates.** Date added is when the file reached the phone (MediaStore `DATE_ADDED`) or Drive (`createdTime`). An album's Date created is its Drive folder's `createdTime`, or when a virtual or smart album was created; MediaStore keeps no folder dates, so a device folder uses the earliest Date added among its items. Newest item is the latest Date taken in the album, nested albums included.
+- **Layout.** In item lists, date sorts keep date headers for the chosen date; Name, Size and Custom order show a plain grid. The fast-scroller bubble shows the sort key: a date, a first letter or a size.
 
 ### 4.3 Thumbnails, scanning and change detection
 
@@ -387,7 +405,7 @@ Built on Media3 ExoPlayer with a Compose UI.
 
 **Settings sync**
 
-- Album list, pins, bookmarks, share groups, edit presets, and history (if enabled) are saved in the user's own Drive app-data folder (`drive.appdata`, a non-sensitive scope).
+- Album list, sort choices, pins, bookmarks, share groups, edit presets, and history (if enabled) are saved in the user's own Drive app-data folder (`drive.appdata`, a non-sensitive scope).
 - A reinstall restores everything without any PhotoXT server.
 
 ### 4.9 History
@@ -809,16 +827,17 @@ flowchart LR
 |---|---|
 | `account` | id, email, scopes granted, changes page token(s), last sync |
 | `tracked_folder` | account, driveFolderId, driveId (shared drive, nullable), mergeSubfolders, state |
-| `album` | id, type, sourceRef, title, titleOverride, cover, sort, customOrder, groupId, hidden, pinnedAt, visibility, offline |
+| `album` | id, type, sourceRef, title, titleOverride, cover, sort, sortDescending, position, createdAt, groupId, hidden, pinnedAt, visibility, offline |
 | `album_item` | membership rows for virtual and smart albums |
 | `album_group` | grouping of albums |
+| `item_order` | albumId, mediaId, position: the drag order of an album sorted by Custom order |
 
 **Media**
 
 `media` holds one row per photo or video, from any source:
 
 - **Identity:** id, source, account, remoteId / contentUri, albumId
-- **File:** name, mime, bytes, width, height, rotation, durationMs, takenAt, modifiedAt, md5, remoteVersion
+- **File:** name, nameKey, mime, bytes, width, height, rotation, durationMs, takenAt, addedAt, modifiedAt, md5, remoteVersion
 - **Place and camera:** lat, lng, camera
 - **Flags:** favorite, hidden, trashedAt
 - **Cache state:** thumbState, blurhash, cacheState, cachePath, cachedAt, lastOpenedAt, offlinePinned
@@ -865,6 +884,7 @@ flowchart LR
 - Every schema change ships with a migration test.
 - Remote IDs are opaque strings.
 - Times are stored as UTC epoch milliseconds.
+- For sorting (§4.2), `nameKey` is a natural-order name key and `album.position` is an album's place in Custom order. Each item sort key is indexed with `albumId`, and ties break by `takenAt`, then `id`, so paged lists keep a stable order.
 
 ### 5.5 Sync engine (per Google account)
 
@@ -1084,14 +1104,17 @@ Every phase ends the same way: the build is green, tests pass, lint is clean, th
 - Bookmarks: collections, notes, video timestamps.
 - History: resume, incognito, auto-delete.
 - Hidden items and the vault.
-- Album groups, virtual and smart albums, sort and cover options.
+- Album groups, virtual and smart albums, and cover options.
+- Sorting (§4.2) for the Albums tab, item lists and the Pictures timeline, in both directions, including the new date-added and date-created data.
 - Settings sync through the Drive app-data folder.
 
 **Done when:**
 
-- Pins, bookmarks and settings come back after an uninstall and reinstall.
+- Pins, bookmarks, sort choices and settings come back after an uninstall and reinstall.
 - Vault files can't be read outside the app.
 - History never contains Hidden or Vault items.
+- Tests run every sort, both ways, over sample albums: names in natural order (IMG_2 before IMG_10), Date added independent of Date taken, and pinned albums and items always on top.
+- A 20,000-item album switches between any two sorts in under 1 s and scrolls without visible jank.
 
 ### Phase 7 — Image editor
 

@@ -65,6 +65,9 @@ Durable facts and decisions that a future session would otherwise have to redisc
 - `thumbnailLink` (spike): comes as `=s220`; `=sN` gives a JPEG at that long edge, `-rw` a WebP at about half the bytes, `wN-hN` fits a box and `-c` crops. A fresh link works with or without the Authorization header; 18 hours later it answers 403 (HTML). A `files.get` with only some fields must still ask for `id` (DriveFile needs it).
 - Changes API (spike): a file another account added to a folder shared with the user reached the user's feed within 10 s, in both the plain and the all-drives feed, so one feed per account covers shared-with-me. Shared drives aren't testable on personal accounts; Google's docs say the user feed with `includeItemsFromAllDrives` and `supportsAllDrives` (no `driveId`) includes the shared drives the user belongs to, so Phase 4 can keep one token per account.
 - Range streaming (spike and Done when): ExoPlayer read the 1 GB test video's `moov` from its end with a Range request, and a seek to 7:10 resumed downloading at byte 751 MB.
+- Sorting was added to both specs on 2026-11-06 (§4.2, built in Phase 6): the Albums tab, item lists and the Pictures timeline, each in both directions. Camera and Screenshots become automatic pins; in Phase 6 that replaces the fixed Camera-then-Screenshots order in `AlbumsViewModel`'s `arrange`.
+- The spec's `album.customOrder` (never built) is now `album.position`, an album's place in Custom order; item drag order goes in a new `item_order` table.
+- Date added isn't stored yet: the MediaStore indexer reads `DATE_ADDED` and the Drive scanner fetches `createdTime` (folders too), but only as takenAt fallbacks. Phase 6 adds `media.addedAt` and `album.createdAt` and must fill existing rows (migration plus rescan).
 
 ## Known limits
 - detekt 1.23.8, the latest stable, calls Gradle APIs that Gradle 10 removes. Move to detekt 2 once it is stable.
