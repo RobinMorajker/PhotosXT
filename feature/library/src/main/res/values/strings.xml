@@ -3,6 +3,80 @@
     <string name="library_storage">Storage</string>
     <string name="library_storage_body">Drive downloads, offline items and data saver</string>
     <string name="action_back">Back</string>
+    <string name="library_trash">Trash</string>
+    <string name="library_trash_body">Deleted photos and videos, on the phone and in Drive</string>
+    <string name="library_transfers">Transfers</string>
+    <string name="library_transfers_body">Copies, moves, uploads and downloads</string>
+    <string name="library_manage_media">Manage media without asking</string>
+    <string name="library_manage_media_on">On: moves and deletes go ahead without a confirmation each time</string>
+    <string name="library_manage_media_off">Off: Android asks before PhotoXT moves or deletes other apps\' photos</string>
+
+    <!-- Trash (spec §4.7). -->
+    <string name="trash_title">Trash</string>
+    <string name="trash_note">Items here are deleted for good after 30 days.</string>
+    <string name="trash_empty">Empty</string>
+    <string name="trash_empty_title">Empty the trash?</string>
+    <string name="trash_delete_body">They\'re deleted for good, on this phone and in Google Drive. This can\'t be undone.</string>
+    <string name="trash_delete_forever">Delete forever</string>
+    <string name="trash_restore">Restore</string>
+    <string name="trash_on_phone">On this phone</string>
+    <string name="trash_cancel_selection">Cancel selection</string>
+    <!-- %1$s is a Google account's e-mail address. -->
+    <string name="trash_drive_failed">Couldn\'t read the Drive bin of %1$s.</string>
+    <string name="trash_empty_state_title">The trash is empty</string>
+    <string name="trash_empty_state_body">Photos and videos you delete stay here for 30 days.</string>
+    <plurals name="trash_delete_title">
+        <item quantity="one">Delete %1$,d item forever?</item>
+        <item quantity="other">Delete %1$,d items forever?</item>
+    </plurals>
+    <plurals name="trash_items">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+    <plurals name="trash_selected">
+        <item quantity="one">%1$,d selected</item>
+        <item quantity="other">%1$,d selected</item>
+    </plurals>
+    <plurals name="trash_days_left">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+
+    <!-- Transfers (spec §4.7). %1$s is the album or what the action was about. -->
+    <string name="transfers_title">Transfers</string>
+    <string name="transfers_clear">Clear finished</string>
+    <string name="transfers_empty_title">No transfers</string>
+    <string name="transfers_empty_body">Copies, moves, uploads and deletions show here while they run.</string>
+    <string name="transfer_op_copy">Copy to %1$s</string>
+    <string name="transfer_op_move">Move to %1$s</string>
+    <string name="transfer_op_trash">Move %1$s to the trash</string>
+    <string name="transfer_op_restore">Restore %1$s</string>
+    <string name="transfer_op_delete">Delete %1$s forever</string>
+    <string name="transfer_op_rename">Rename %1$s</string>
+    <string name="transfer_op_convert">Convert %1$s to JPEG</string>
+    <string name="transfer_op_mkdir">New folder %1$s</string>
+    <string name="transfer_op_remove">Remove %1$s from the album</string>
+    <string name="transfer_paused">Paused</string>
+    <string name="transfer_waiting">Waiting for your answer</string>
+    <string name="transfer_cancelled">Cancelled</string>
+    <!-- %1$d of %2$d items. -->
+    <string name="transfer_progress">%1$,d of %2$,d</string>
+    <!-- Sizes such as "34 MB of 120 MB". -->
+    <string name="transfer_bytes">%1$s of %2$s</string>
+    <plurals name="transfer_done">
+        <item quantity="one">Done · %1$,d item</item>
+        <item quantity="other">Done · %1$,d items</item>
+    </plurals>
+    <plurals name="transfer_failed">
+        <item quantity="one">%1$,d item failed</item>
+        <item quantity="other">%1$,d items failed</item>
+    </plurals>
+    <string name="transfer_pause">Pause</string>
+    <string name="transfer_resume">Resume</string>
+    <string name="transfer_cancel">Cancel</string>
+    <string name="transfer_retry">Try again</string>
+    <string name="transfer_undo">Undo</string>
+    <string name="transfer_undo_of">Undo: %1$s</string>
 
     <!-- The Storage screen (spec §4.4). -->
     <string name="storage_title">Storage</string>

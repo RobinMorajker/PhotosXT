@@ -94,3 +94,60 @@ data class ViewerStart(
     val index: Int,
     val id: String
 )
+
+/**
+ * What one file operation does (spec §4.7). A batch is one user action; each of its jobs does the
+ * batch's operation to one item, except folder creation, which a recursive paste needs first.
+ */
+enum class TransferOp {
+    COPY,
+    MOVE,
+    TRASH,
+    RESTORE,
+    DELETE,
+    RENAME,
+    CONVERT,
+    MKDIR,
+
+    /** A Drive file the user can't bin leaves the folder instead (spec §4.7, Trash). */
+    REMOVE_FROM_ALBUM
+}
+
+/**
+ * Where a transfer job stands. [WAITING] needs the user: a name conflict, a system permission
+ * screen, or a choice for a Drive file they don't own (see the job's `waitFor`).
+ */
+enum class TransferState { QUEUED, RUNNING, WAITING, DONE, FAILED, SKIPPED, CANCELLED }
+
+/** What a [TransferState.WAITING] job waits for. */
+enum class WaitFor {
+    /** An item of that name is already there: Keep both, Replace or Skip. */
+    CONFLICT,
+
+    /** A Drive file shared with the user can't go to the bin: offer Remove from this album. */
+    NOT_OWNED,
+
+    /** The Google account must grant full Drive access first (spec §2, scope upgrade). */
+    DRIVE_SCOPE,
+
+    /** MediaStore asks the user before PhotoXT changes another app's item (write request). */
+    DEVICE_WRITE,
+
+    /** MediaStore's own confirmation to move items to or from its trash, or delete them. */
+    DEVICE_TRASH,
+    DEVICE_RESTORE,
+    DEVICE_DELETE
+}
+
+/** What happens when an item of the same name is already in the target (spec §4.7). */
+enum class ConflictPolicy {
+    ASK,
+
+    /** Keep both: the new one gets a " (1)" suffix. */
+    KEEP_BOTH,
+    REPLACE,
+    SKIP
+}
+
+/** The in-app clipboard's mode (spec §4.7): a paste copies, or moves (cut). */
+enum class ClipboardMode { COPY, CUT }

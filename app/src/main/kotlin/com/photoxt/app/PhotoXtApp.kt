@@ -4,9 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -15,14 +19,17 @@ import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSui
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
@@ -36,6 +43,8 @@ import com.photoxt.feature.albums.AlbumsScreen
 import com.photoxt.feature.albums.DriveBrowserScreen
 import com.photoxt.feature.library.LibraryScreen
 import com.photoxt.feature.library.StorageScreen
+import com.photoxt.feature.library.TransfersScreen
+import com.photoxt.feature.library.TrashScreen
 import com.photoxt.feature.timeline.AlbumScreen
 import com.photoxt.feature.timeline.PicturesScreen
 import com.photoxt.feature.timeline.TimelineNavigation
@@ -47,9 +56,21 @@ import kotlinx.coroutines.launch
  * a photo came from stays underneath for its flight back.
  */
 @Composable
-fun PhotoXtApp(modifier: Modifier = Modifier) {
+fun PhotoXtApp(
+    modifier: Modifier = Modifier,
+    openTransfers: Boolean = false,
+    onOpenHandled: () -> Unit = {}
+) {
     val navigation = rememberNavigationState()
     val hero = remember { MediaHeroState() }
+    val snackbar = remember { SnackbarHostState() }
+    // A transfer notification's tap opens Transfers.
+    LaunchedEffect(openTransfers) {
+        if (openTransfers) {
+            navigation.openIn(TopLevelTab.Library, TransfersKey)
+            onOpenHandled()
+        }
+    }
     CompositionLocalProvider(LocalMediaHero provides hero) {
         Box(modifier.fillMaxSize()) {
             Tabs(
@@ -58,9 +79,22 @@ fun PhotoXtApp(modifier: Modifier = Modifier) {
                 if (navigation.overlayOpen) Modifier.clearAndSetSemantics {} else Modifier
             )
             Overlays(navigation)
+            SnackbarHost(
+                snackbar,
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = SnackbarLift)
+            )
         }
     }
+    TransferPrompts(snackbar, onOpenTransfers = {
+        navigation.openIn(TopLevelTab.Library, TransfersKey)
+    })
 }
+
+/** Above the bottom navigation bar, where a snackbar can't hide the tabs. */
+private val SnackbarLift = 88.dp
 
 @Composable
 private fun Tabs(navigation: NavigationState, modifier: Modifier = Modifier) {
@@ -151,10 +185,14 @@ private fun appEntries(
     entry(TopLevelTab.Library) {
         LibraryScreen(
             title = stringResource(TopLevelTab.Library.title),
-            onOpenStorage = { navigation.open(StorageKey) }
+            onOpenStorage = { navigation.open(StorageKey) },
+            onOpenTrash = { navigation.open(TrashKey) },
+            onOpenTransfers = { navigation.open(TransfersKey) }
         )
     }
     entry<StorageKey> { StorageScreen(onBack = navigation::goBack) }
+    entry<TrashKey> { TrashScreen(onBack = navigation::goBack) }
+    entry<TransfersKey> { TransfersScreen(onBack = navigation::goBack) }
     PlaceholderTabs.forEach { tab -> entry(tab) { TabScreen(tab) } }
 }
 

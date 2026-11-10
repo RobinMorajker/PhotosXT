@@ -6,9 +6,14 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.photoxt.core.model.AlbumType
+import com.photoxt.core.model.ClipboardMode
+import com.photoxt.core.model.ConflictPolicy
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.model.TransferOp
+import com.photoxt.core.model.TransferState
+import com.photoxt.core.model.WaitFor
 
 /**
  * An album (spec §5.4). A device folder's [id] is `device:<bucket id>`; a Drive folder's is
@@ -31,7 +36,12 @@ data class AlbumEntity(
     /** A Drive subfolder shown as a nested album: the album of its parent folder. */
     val parentId: String? = null,
     /** A Drive album: the album of the tracked folder it belongs to (itself for that one). */
-    val rootId: String? = null
+    val rootId: String? = null,
+    /**
+     * A phone album made in PhotoXT that holds nothing yet. Its id is the MediaStore bucket id
+     * its first item will have, so the album stays the same one once filled.
+     */
+    @ColumnInfo(defaultValue = "0") val pending: Boolean = false
 )
 
 /**
@@ -287,6 +297,103 @@ data class PlaybackPositionEntity(
     val positionMs: Long,
     val durationMs: Long,
     val updatedAt: Long
+)
+
+/**
+ * One file operation the user started (spec §4.7): a paste, a delete, a restore, a rename or a
+ * conversion. Its [TransferJobEntity] rows do the work, one item each, in id order, so a folder
+ * is made before what goes into it. [conflictPolicy] stays ASK until the user answers a name
+ * conflict with *Apply to all*.
+ */
+@Entity(tableName = "transfer_batch")
+data class TransferBatchEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val op: TransferOp,
+    /** What the Transfers screen calls it, e.g. the target album's name. */
+    val title: String,
+    val conflictPolicy: ConflictPolicy,
+    val paused: Boolean = false,
+    val createdAt: Long,
+    val finishedAt: Long? = null,
+    /** This batch reverses batch [undoOf] (spec §4.7, Undo). */
+    val undoOf: Long? = null,
+    /** Undo was used on this batch. */
+    val undone: Boolean = false
+)
+
+/**
+ * One item of a [TransferBatchEntity] (spec §5.4, `transfer_job`): what it is ([src]), where it
+ * goes ([dst]), how far it got, and what it needs to resume ([progress]: an upload session, a
+ * pending MediaStore item, a Drive id made for it in advance). [src], [dst], [progress] and
+ * [result] are JSON written by core/transfer. Jobs are persisted before they run, so a job
+ * killed mid-way resumes from [progress] at the next start.
+ */
+@Entity(
+    tableName = "transfer_job",
+    foreignKeys = [
+        ForeignKey(
+            entity = TransferBatchEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["batchId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("batchId"), Index("state", "nextAttemptAt")]
+)
+data class TransferJobEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val batchId: Long,
+    val op: TransferOp,
+    val src: String,
+    /** Null when the item stays where it is (trash, restore, delete). */
+    val dst: String?,
+    val state: TransferState,
+    val waitFor: WaitFor? = null,
+    val bytesDone: Long = 0,
+    val bytesTotal: Long = 0,
+    /** This item's answer to a name conflict; null takes the batch's. */
+    val conflictPolicy: ConflictPolicy? = null,
+    val attempts: Int = 0,
+    val error: String? = null,
+    val progress: String? = null,
+    /** Where the item ended up, for Undo. */
+    val result: String? = null,
+    /** A failed attempt waits until then before the next (exponential backoff). */
+    val nextAttemptAt: Long = 0,
+    val updatedAt: Long
+)
+
+/**
+ * The in-app clipboard (spec §4.7): one row while something is cut or copied, kept until it is
+ * pasted or cleared, app restarts included. [itemRefs] holds one `media:<id>` or `album:<id>`
+ * per line.
+ */
+@Entity(tableName = "clipboard")
+data class ClipboardEntity(
+    @PrimaryKey val id: Int = 0,
+    val mode: ClipboardMode,
+    val itemRefs: String,
+    val createdAt: Long
+)
+
+/** A batch with its jobs counted, for the Transfers screen. */
+data class TransferBatchRow(
+    val id: Long,
+    val op: TransferOp,
+    val title: String,
+    val paused: Boolean,
+    val createdAt: Long,
+    val finishedAt: Long?,
+    val undoOf: Long?,
+    val undone: Boolean,
+    val total: Int,
+    val done: Int,
+    val failed: Int,
+    val skipped: Int,
+    val waiting: Int,
+    val cancelled: Int,
+    val bytesDone: Long,
+    val bytesTotal: Long
 )
 
 /**

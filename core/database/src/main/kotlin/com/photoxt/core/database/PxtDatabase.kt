@@ -30,15 +30,20 @@ import javax.inject.Singleton
         DriveThumbnailEntity::class,
         DriveCacheEntity::class,
         OfflinePinEntity::class,
-        DriveOrphanEntity::class
+        DriveOrphanEntity::class,
+        TransferBatchEntity::class,
+        TransferJobEntity::class,
+        ClipboardEntity::class
     ],
-    version = 4,
+    version = 5,
     // 2 (Phase 2): video resume points. 3 (Phase 3): Google accounts and Drive albums.
     // 4 (Phase 4): offline pins, orphans and albums kept offline.
+    // 5 (Phase 5): the transfer queue and the clipboard.
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
-        AutoMigration(from = 3, to = 4, spec = Version3To4::class)
+        AutoMigration(from = 3, to = 4, spec = Version3To4::class),
+        AutoMigration(from = 4, to = 5)
     ]
 )
 abstract class PxtDatabase : RoomDatabase() {
@@ -53,6 +58,10 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun driveDao(): DriveDao
 
     abstract fun driveCacheDao(): DriveCacheDao
+
+    abstract fun transferDao(): TransferDao
+
+    abstract fun fileOpsDao(): FileOpsDao
 }
 
 /** Pins moved from a never-set `drive_cache` column to the `offline_pin` table. */
@@ -84,4 +93,10 @@ object DatabaseModule {
 
     @Provides
     fun driveCacheDao(database: PxtDatabase): DriveCacheDao = database.driveCacheDao()
+
+    @Provides
+    fun transferDao(database: PxtDatabase): TransferDao = database.transferDao()
+
+    @Provides
+    fun fileOpsDao(database: PxtDatabase): FileOpsDao = database.fileOpsDao()
 }

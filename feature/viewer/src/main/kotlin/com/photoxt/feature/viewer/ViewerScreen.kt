@@ -369,7 +369,9 @@ internal data class ChromeActions(
     val onPanorama: (() -> Unit)?,
     /** Whether a Drive item is kept offline; null for the phone's own items. */
     val offline: Boolean? = null,
-    val onOffline: (Boolean) -> Unit = {}
+    val onOffline: (Boolean) -> Unit = {},
+    /** Moves the item to the trash (spec §4.7); the app offers Undo. */
+    val onDelete: () -> Unit = {}
 )
 
 /** Where the viewer sits and its pages' reports, read by gestures and flights. */

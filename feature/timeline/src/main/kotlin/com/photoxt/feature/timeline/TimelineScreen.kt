@@ -2,6 +2,8 @@ package com.photoxt.feature.timeline
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -30,12 +32,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -49,9 +55,12 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import com.photoxt.core.designsystem.PxtCollapsingHeader
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.media.shareMedia
+import com.photoxt.core.model.ClipboardMode
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.ViewerStart
+import com.photoxt.core.transfer.PasteException
+import com.photoxt.core.transfer.PasteProblem
 import com.photoxt.core.ui.FastScroller
 import com.photoxt.core.ui.GridCell
 import com.photoxt.core.ui.GridDensity
@@ -60,6 +69,7 @@ import com.photoxt.core.ui.MediaAccessRequest
 import com.photoxt.core.ui.MediaGrid
 import com.photoxt.core.ui.heroSourceKey
 import com.photoxt.core.ui.rememberDateGroupLabels
+import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 /**
@@ -122,58 +132,223 @@ private fun TimelineScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val rows = viewModel.rows.collectAsLazyPagingItems()
-    val share = rememberShare(viewModel)
-    val refresh = rememberRefresh(viewModel)
-    val scope = rememberCoroutineScope()
     val selecting = state.selection.isNotEmpty()
     val reportSelectionMode by rememberUpdatedState(onSelectionModeChange)
     LaunchedEffect(selecting) { reportSelectionMode(selecting) }
     DisposableEffect(Unit) { onDispose { reportSelectionMode(false) } }
     BackHandler(enabled = selecting) { viewModel.clearSelection() }
 
+    var dialog by rememberSaveable { mutableStateOf<TimelineDialog?>(null) }
+    val fileOps = rememberFileOps(viewModel, title, navigation, onBack)
     TimelineContent(
         title = title,
         state = state,
         rows = rows,
         permissions = viewModel.permissions,
-        callbacks = TimelineCallbacks(
-            onAccessResult = viewModel::refreshAccess,
-            onFilterChange = viewModel::setFilter,
-            onDensityChange = viewModel::setDensity,
-            onSelectionChange = viewModel::setSelection,
-            onSelectGroup = viewModel::selectGroup,
-            onShare = share,
-            onOpen = { item, index ->
-                navigation.onOpen(ViewerStart(viewModel.albumId, state.filter, index, item.id))
-            },
-            onCompare = {
-                viewModel.comparePair()?.let { (newer, older) ->
-                    viewModel.clearSelection()
-                    navigation.onCompare(newer, older)
-                }
-            },
-            onOpenAlbum = navigation.onOpenAlbum,
-            onMerge = viewModel::setMerge,
-            onOffline = viewModel::setOffline,
-            onRemoveDriveFolder = {
-                scope.launch {
-                    viewModel.removeDriveFolder()
-                    onBack?.invoke()
-                }
-            },
-            onRelink = {
-                val albumId = viewModel.albumId
-                val drive = state.drive
-                if (albumId != null && drive != null) navigation.onRelink(albumId, drive.accountId)
-            },
-            onRefresh = refresh
-        ),
+        callbacks = timelineCallbacks(viewModel, state, navigation, fileOps, onBack) {
+            dialog = it
+        },
         empty = empty,
         modifier = modifier,
         onBack = onBack,
         heroSourceKey = heroSourceKey(viewModel.albumId, state.filter)
     )
+    val selectionTitle = fileOps.selectionTitle(state.selection.size)
+    TimelineDialogs(
+        dialog = dialog,
+        selected = state.selection.size,
+        albumTitle = title,
+        onDelete = { viewModel.fileOps.delete(selectionTitle) },
+        onRename = { viewModel.fileOps.rename(it, selectionTitle) },
+        onNewFolder = fileOps.newFolder,
+        onRenameAlbum = fileOps.renameAlbum,
+        onDismiss = { dialog = null }
+    )
 }
+
+/** What the timeline's parts can ask for, answered by [viewModel], [navigation] and [fileOps]. */
+@Composable
+private fun timelineCallbacks(
+    viewModel: TimelineViewModel,
+    state: TimelineUiState,
+    navigation: TimelineNavigation,
+    fileOps: FileOps,
+    onBack: (() -> Unit)?,
+    onDialog: (TimelineDialog) -> Unit
+): TimelineCallbacks {
+    val scope = rememberCoroutineScope()
+    val removeDriveFolder: () -> Unit = {
+        scope.launch {
+            viewModel.removeDriveFolder()
+            onBack?.invoke()
+        }
+    }
+    return TimelineCallbacks(
+        onAccessResult = viewModel::refreshAccess,
+        onFilterChange = viewModel::setFilter,
+        onDensityChange = viewModel::setDensity,
+        onSelectionChange = viewModel::setSelection,
+        onSelectGroup = viewModel::selectGroup,
+        onOpen = { item, index ->
+            navigation.onOpen(ViewerStart(viewModel.albumId, state.filter, index, item.id))
+        },
+        onOpenAlbum = navigation.onOpenAlbum,
+        onRemoveDriveFolder = removeDriveFolder,
+        onRelink = {
+            val albumId = viewModel.albumId
+            val drive = state.drive
+            if (albumId != null && drive != null) navigation.onRelink(albumId, drive.accountId)
+        },
+        onRefresh = rememberRefresh(viewModel),
+        selection = selectionCallbacks(
+            viewModel,
+            state.selection.size,
+            navigation,
+            fileOps,
+            onDialog
+        ),
+        album = AlbumCallbacks(
+            onNewFolder = { onDialog(TimelineDialog.NEW_FOLDER) },
+            onRename = { onDialog(TimelineDialog.RENAME_ALBUM) },
+            onClip = viewModel.fileOps::clipAlbum,
+            onMerge = viewModel::setMerge,
+            onOffline = viewModel::setOffline,
+            onRemove = removeDriveFolder
+        ),
+        onPaste = fileOps.paste,
+        onClearClipboard = viewModel.fileOps::clearClipboard
+    )
+}
+
+/** The selection bar's actions for [selected] items. */
+@Composable
+private fun selectionCallbacks(
+    viewModel: TimelineViewModel,
+    selected: Int,
+    navigation: TimelineNavigation,
+    fileOps: FileOps,
+    onDialog: (TimelineDialog) -> Unit
+): SelectionCallbacks {
+    val compare: () -> Unit = {
+        viewModel.comparePair()?.let { (newer, older) ->
+            viewModel.clearSelection()
+            navigation.onCompare(newer, older)
+        }
+    }
+    return SelectionCallbacks(
+        onShare = rememberShare(viewModel),
+        onCut = { viewModel.fileOps.clip(ClipboardMode.CUT) },
+        onCopy = { viewModel.fileOps.clip(ClipboardMode.COPY) },
+        onDelete = { onDialog(TimelineDialog.DELETE) },
+        onRename = { onDialog(TimelineDialog.RENAME_ITEMS) },
+        onConvert = fileOps.convert,
+        onExportPdf = fileOps.exportPdf,
+        onCopyToClipboard = fileOps.copyToClipboard.takeIf { selected == 1 },
+        onCompare = compare.takeIf { selected == 2 }
+    )
+}
+
+/** File operations that answer with a toast or open something (spec §4.7). */
+private data class FileOps(
+    val paste: () -> Unit,
+    val convert: () -> Unit,
+    val exportPdf: () -> Unit,
+    val copyToClipboard: () -> Unit,
+    val newFolder: (String) -> Unit,
+    val renameAlbum: (String) -> Unit,
+    val selectionTitle: (Int) -> String
+)
+
+@Composable
+private fun rememberFileOps(
+    viewModel: TimelineViewModel,
+    title: String,
+    navigation: TimelineNavigation,
+    onBack: (() -> Unit)?
+): FileOps {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    val ops = viewModel.fileOps
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    return FileOps(
+        paste = {
+            scope.launch {
+                ops.paste().exceptionOrNull()?.let { toast(resources.getString(pasteError(it))) }
+            }
+        },
+        convert = {
+            scope.launch {
+                if (!ops.convert(title)) toast(resources.getString(R.string.convert_none))
+            }
+        },
+        exportPdf = rememberPdfExport(ops, ::toast),
+        copyToClipboard = {
+            scope.launch {
+                if (ops.copyToSystemClipboard()) {
+                    toast(resources.getString(R.string.copied_to_clipboard))
+                } else {
+                    toast(resources.getString(R.string.copy_to_clipboard_failed))
+                }
+            }
+        },
+        newFolder = { name ->
+            scope.launch {
+                runCatching { ops.newFolder(name) }
+                    .onSuccess { id ->
+                        if (id != null) {
+                            navigation.onOpenAlbum(id, name)
+                        } else {
+                            toast(resources.getString(R.string.folder_creating, name))
+                        }
+                    }
+                    .onFailure { toast(resources.getString(R.string.folder_failed)) }
+            }
+        },
+        renameAlbum = { name ->
+            scope.launch {
+                // A phone album's items move into a new folder, which is a new album.
+                if (ops.renameAlbum(name) != null && viewModel.isPhoneAlbum) onBack?.invoke()
+            }
+        },
+        selectionTitle = { count ->
+            resources.getQuantityString(R.plurals.clip_items, count, count)
+        }
+    )
+}
+
+/** Export as PDF: the system's save screen, then a toast with the pages written. */
+@Composable
+private fun rememberPdfExport(ops: TimelineFileOps, toast: (String) -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val scope = rememberCoroutineScope()
+    val pdf = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val pages = ops.exportPdf(context.contentResolver, uri)
+                toast(
+                    if (pages > 0) {
+                        resources.getQuantityString(R.plurals.pdf_saved, pages, pages)
+                    } else {
+                        resources.getString(R.string.pdf_failed)
+                    }
+                )
+            }
+        }
+    }
+    return { pdf.launch(resources.getString(R.string.pdf_file_name, LocalDate.now())) }
+}
+
+/** Why a paste queued nothing, to say so. */
+private fun pasteError(error: Throwable): Int =
+    if ((error as? PasteException)?.problem == PasteProblem.INTO_ITSELF) {
+        R.string.paste_into_itself
+    } else {
+        R.string.paste_nothing
+    }
 
 /** Pull-to-refresh, saying so when Google Drive could not be reached. */
 @Composable
@@ -223,23 +398,22 @@ data class TimelineCallbacks(
     val onDensityChange: (GridDensity) -> Unit = {},
     val onSelectionChange: (Map<String, Long>) -> Unit = {},
     val onSelectGroup: (groupKey: Int, select: Boolean) -> Unit = { _, _ -> },
-    val onShare: () -> Unit = {},
     /** Opens an item, given with its position among items only. */
     val onOpen: (GridCell.Item, index: Int) -> Unit = { _, _ -> },
-    /** Compares the two selected items. */
-    val onCompare: () -> Unit = {},
     /** Opens a nested Drive album. */
     val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> },
-    /** Nests or merges a tracked Drive folder's subfolders. */
-    val onMerge: (Boolean) -> Unit = {},
-    /** Keeps a tracked Drive folder available offline, or stops. */
-    val onOffline: (Boolean) -> Unit = {},
     /** Removes a tracked Drive folder from PhotoXT. */
     val onRemoveDriveFolder: () -> Unit = {},
     /** Points an unavailable Drive album at a folder again. */
     val onRelink: () -> Unit = {},
     /** Pull-to-refresh. */
-    val onRefresh: () -> Unit = {}
+    val onRefresh: () -> Unit = {},
+    /** The selection's actions (spec §4.1, §4.7). */
+    val selection: SelectionCallbacks = SelectionCallbacks(),
+    /** An album's menu. */
+    val album: AlbumCallbacks = AlbumCallbacks(),
+    val onPaste: () -> Unit = {},
+    val onClearClipboard: () -> Unit = {}
 )
 
 /** The timeline screen without its ViewModel, for previews and screenshot tests. */
@@ -304,15 +478,7 @@ private fun TimelineColumn(
             scrollBehavior = scrollBehavior,
             navigationIcon = navigationIcon,
             actions = {
-                val drive = state.drive
-                if (selected == 0 && drive != null && drive.isRoot) {
-                    DriveAlbumMenu(
-                        drive,
-                        callbacks.onMerge,
-                        callbacks.onOffline,
-                        callbacks.onRemoveDriveFolder
-                    )
-                }
+                if (selected == 0 && onBack != null) AlbumMenu(state.drive, callbacks.album)
             }
         )
         if (state.access == MediaAccess.DENIED) {
@@ -328,10 +494,15 @@ private fun TimelineColumn(
                 inAlbum = onBack != null,
                 modifier = Modifier.weight(1f)
             )
+            val clip = state.clip
             if (selected > 0) {
-                SelectionActions(
-                    onShare = callbacks.onShare,
-                    onCompare = callbacks.onCompare.takeIf { selected == 2 }
+                SelectionActions(callbacks.selection)
+            } else if (clip != null) {
+                ClipboardBar(
+                    clip = clip,
+                    inAlbum = onBack != null,
+                    onPaste = callbacks.onPaste,
+                    onClear = callbacks.onClearClipboard
                 )
             }
         }

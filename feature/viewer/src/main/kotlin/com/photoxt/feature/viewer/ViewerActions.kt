@@ -53,7 +53,15 @@ internal fun chromeActions(
         },
         onOpenWith = { current?.let(context::openWith) },
         onSetAs = { current?.let(context::setAs) },
-        onCopy = { current?.let(context::copyToClipboard) },
+        onCopy = {
+            current?.let { item ->
+                if (item.contentUri != null) {
+                    context.copyToClipboard(item)
+                } else {
+                    viewModel.fileOps.copyToClipboard(item)
+                }
+            }
+        },
         onPlay = current?.takeIf {
             it.kind == MediaKind.VIDEO
         }?.let { { navigation.onPlay(it.id) } },
@@ -66,7 +74,8 @@ internal fun chromeActions(
             uri?.let { { navigation.onPanorama(it, panorama) } }
         },
         offline = pinned,
-        onOffline = { on -> drive?.let { viewModel.setPinned(it, on) } }
+        onOffline = { on -> drive?.let { viewModel.setPinned(it, on) } },
+        onDelete = { current?.let(viewModel.fileOps::delete) }
     )
 }
 

@@ -149,6 +149,39 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun version4To5KeepsAlbumsAndAddsTheTransferQueueAndClipboard() {
+        helper.createDatabase(NAME, 4).use { db ->
+            db.execSQL(
+                "INSERT INTO album (id, type, sourceRef, title, accountId, parentId, rootId) " +
+                    "VALUES ('device:1', 'DEVICE_FOLDER', 'external_primary:DCIM/Camera/', " +
+                    "'Camera', NULL, NULL, NULL)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 5, true).use { db ->
+            db.query("SELECT title, pending FROM album").use {
+                it.moveToFirst()
+                assertEquals("Camera", it.getString(0))
+                assertEquals(0, it.getInt(1))
+            }
+            db.execSQL(
+                "INSERT INTO transfer_batch (id, op, title, conflictPolicy, paused, createdAt, " +
+                    "undone) VALUES (1, 'MOVE', 'Camera', 'ASK', 0, 1, 0)"
+            )
+            db.execSQL(
+                "INSERT INTO transfer_job (batchId, op, src, dst, state, bytesDone, bytesTotal, " +
+                    "attempts, nextAttemptAt, updatedAt) VALUES " +
+                    "(1, 'MOVE', '{}', NULL, 'QUEUED', 0, 10, 0, 0, 1)"
+            )
+            db.execSQL("INSERT INTO clipboard VALUES (0, 'CUT', 'media:device:7', 1)")
+            db.execSQL("PRAGMA foreign_keys = ON")
+            db.execSQL("DELETE FROM transfer_batch WHERE id = 1")
+            assertEquals(0, db.count("transfer_job"))
+            assertEquals(1, db.count("clipboard"))
+        }
+    }
+
     private fun SupportSQLiteDatabase.count(table: String): Int =
         query("SELECT COUNT(*) FROM $table").use { cursor ->
             cursor.moveToFirst()

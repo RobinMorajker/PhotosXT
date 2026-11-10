@@ -10,6 +10,7 @@ import coil3.SingletonImageLoader
 import coil3.gif.AnimatedImageDecoder
 import coil3.request.allowHardware
 import com.photoxt.core.common.PxtLog
+import com.photoxt.core.drive.DriveHttp
 import com.photoxt.core.media.DeviceMediaSync
 import com.photoxt.core.media.DeviceThumbnailFetcher
 import com.photoxt.core.media.DeviceThumbnailKeyer
@@ -19,6 +20,9 @@ import com.photoxt.core.media.DriveOriginals
 import com.photoxt.core.media.DriveThumbnailKeyer
 import com.photoxt.core.media.DriveThumbnails
 import com.photoxt.core.sync.DriveSync
+import com.photoxt.core.transfer.DriveLinkThumbnailFetcher
+import com.photoxt.core.transfer.DriveLinkThumbnailKeyer
+import com.photoxt.core.transfer.TransferQueue
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -40,11 +44,19 @@ class PhotoXtApplication :
     @Inject
     lateinit var driveOriginals: DriveOriginals
 
+    @Inject
+    lateinit var transferQueue: TransferQueue
+
+    @Inject
+    lateinit var driveHttp: DriveHttp
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) enableStrictMode()
         deviceMediaSync.start()
         driveSync.start()
+        // Resumes transfers a killed process left half done (spec §4.7).
+        transferQueue.start()
     }
 
     /**
@@ -55,6 +67,8 @@ class PhotoXtApplication :
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setMinimumLoggingLevel(if (BuildConfig.DEBUG) Log.INFO else Log.ERROR)
+            // Clear of the transfer queue's own JobScheduler job (TransferScheduler.JOB_ID).
+            .setJobSchedulerJobIdRange(WORK_JOB_IDS_FROM, WORK_JOB_IDS_TO)
             .build()
 
     /**
@@ -74,6 +88,9 @@ class PhotoXtApplication :
                 add(DriveThumbnails.Fetcher.Factory(driveThumbnails))
                 add(DriveOriginalKeyer())
                 add(DriveOriginalFetcher.Factory(driveOriginals))
+                // Binned Drive files in Trash (spec §4.7).
+                add(DriveLinkThumbnailKeyer())
+                add(DriveLinkThumbnailFetcher.Factory(driveHttp))
                 // Animated GIF, WebP and HEIF in the viewer (spec §4.5); stills decode as before.
                 add(AnimatedImageDecoder.Factory())
             }
@@ -98,5 +115,9 @@ class PhotoXtApplication :
 
     private companion object {
         const val TAG = "StrictMode"
+
+        /** JobScheduler ids WorkManager may use; the transfer job's (5005) is below them. */
+        const val WORK_JOB_IDS_FROM = 10_000
+        const val WORK_JOB_IDS_TO = 100_000
     }
 }

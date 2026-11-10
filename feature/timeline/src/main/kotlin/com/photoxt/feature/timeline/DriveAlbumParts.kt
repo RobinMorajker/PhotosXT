@@ -16,11 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,61 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.photoxt.core.designsystem.R as DesignR
-
-/**
- * A tracked Drive folder's menu: merge its subfolders, keep it available offline (spec §4.4), or
- * remove it from PhotoXT.
- */
-@Composable
-internal fun DriveAlbumMenu(
-    info: DriveAlbumInfo,
-    onMerge: (Boolean) -> Unit,
-    onOffline: (Boolean) -> Unit,
-    onRemove: () -> Unit
-) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    var confirm by rememberSaveable { mutableStateOf(false) }
-    IconButton(onClick = { open = true }) {
-        Icon(
-            painterResource(DesignR.drawable.ic_more_vert),
-            contentDescription = stringResource(R.string.action_more)
-        )
-    }
-    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.action_merge_subfolders)) },
-            trailingIcon = { Checkbox(checked = info.merge, onCheckedChange = null) },
-            onClick = {
-                open = false
-                onMerge(!info.merge)
-            }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.action_keep_album_offline)) },
-            trailingIcon = { Checkbox(checked = info.offline, onCheckedChange = null) },
-            onClick = {
-                open = false
-                onOffline(!info.offline)
-            }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.action_remove_drive_folder)) },
-            onClick = {
-                open = false
-                confirm = true
-            }
-        )
-    }
-    if (confirm) {
-        RemoveDialog(
-            onConfirm = {
-                confirm = false
-                onRemove()
-            },
-            onDismiss = { confirm = false }
-        )
-    }
-}
 
 @Composable
 private fun RemoveDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {

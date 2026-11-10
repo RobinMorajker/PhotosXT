@@ -77,6 +77,13 @@ class DriveAuth @Inject constructor(
     private val tokens = ConcurrentHashMap<String, CachedToken>()
     private val locks = ConcurrentHashMap<String, Mutex>()
 
+    /**
+     * Whether [accountId] granted [scope] (spec §2: full Drive from the first write). Only what
+     * PhotoXT last heard from Google; a write that finds it lapsed asks again.
+     */
+    suspend fun hasScope(accountId: String, scope: DriveScope): Boolean =
+        dao.account(accountId)?.scopes?.let(scope::grantedIn) == true
+
     /** Asks for [scope] on [accountId]'s behalf. Screens launch the consent screen if needed. */
     suspend fun authorize(accountId: String, scope: DriveScope): Authorization {
         val account = checkNotNull(dao.account(accountId)) { "No such account" }
@@ -84,7 +91,7 @@ class DriveAuth @Inject constructor(
             .setRequestedScopes(listOf(Scope(scope.uri)))
             .setAccount(account.androidAccount())
             .build()
-        return handle(accountId, client.authorize(request).await())
+        return handle(accountId, client.authorize(request).await(), scope)
     }
 
     /** The consent screen's answer for [accountId]: true when Drive access was granted. */
@@ -95,10 +102,16 @@ class DriveAuth @Inject constructor(
         return handle(accountId, result) is Authorization.Granted
     }
 
-    private suspend fun handle(accountId: String, result: AuthorizationResult): Authorization {
+    private suspend fun handle(
+        accountId: String,
+        result: AuthorizationResult,
+        requested: DriveScope? = null
+    ): Authorization {
         if (result.hasResolution()) {
-            // A grant that existed and now needs the screen has lapsed: say so on screen.
-            if (dao.account(accountId)?.scopes.orEmpty().isNotEmpty()) {
+            // A grant that existed and now needs the screen has lapsed: say so on screen. Asking
+            // for more (full Drive at the first write) is no lapse.
+            val granted = dao.account(accountId)?.scopes.orEmpty()
+            if (granted.isNotEmpty() && (requested == null || requested.grantedIn(granted))) {
                 dao.setNeedsConsent(accountId, true)
             }
             return Authorization.NeedsConsent(checkNotNull(result.pendingIntent))

@@ -29,6 +29,8 @@ import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.ViewerStart
 import com.photoxt.core.sync.DeviceConditions
 import com.photoxt.core.sync.OfflinePins
+import com.photoxt.core.transfer.SystemClipboard
+import com.photoxt.core.transfer.Transfers
 import com.photoxt.core.ui.heroSourceKey
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -36,6 +38,7 @@ import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -69,7 +72,9 @@ class ViewerViewModel @AssistedInject constructor(
     private val thumbnails: DriveThumbnails,
     private val pins: OfflinePins,
     private val settings: SettingsStore,
-    private val conditions: DeviceConditions
+    private val conditions: DeviceConditions,
+    private val transfers: Transfers,
+    private val systemClipboard: SystemClipboard
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -245,6 +250,9 @@ class ViewerViewModel @AssistedInject constructor(
         return ViewerDetails(item, mediaDao.folderOf(item.id), media)
     }
 
+    /** Delete, and Copy for a Drive photo (spec §4.7). */
+    val fileOps = ViewerFileOps(viewModelScope, transfers, systemClipboard)
+
     private companion object {
         const val TRAIT_PAGES = 24
         const val LOAD_FACTOR = 0.75f
@@ -256,5 +264,22 @@ class ViewerViewModel @AssistedInject constructor(
             enablePlaceholders = true,
             jumpThreshold = 90
         )
+    }
+}
+
+/** The viewer's file operations (spec §4.7). */
+class ViewerFileOps internal constructor(
+    private val scope: CoroutineScope,
+    private val transfers: Transfers,
+    private val systemClipboard: SystemClipboard
+) {
+    /** Moves [item] to the trash, the phone's or Drive's; Undo follows. */
+    fun delete(item: ViewerItem) {
+        scope.launch { transfers.trash(listOf(item.id), item.name) }
+    }
+
+    /** A Drive photo onto the system clipboard, downloaded first. */
+    fun copyToClipboard(item: ViewerItem) {
+        scope.launch { systemClipboard.copy(item.id, item.contentUri, item.name) }
     }
 }

@@ -1,16 +1,18 @@
 # Overrides on top of detekt's default rules (buildUponDefaultConfig = true).
 complexity:
   # Compose components take flat parameter lists (Compose API guidelines).
-  # Retrofit methods take one parameter per Drive query parameter.
-  # A Hilt constructor lists the class's collaborators; review judges those, not a count.
+  # Retrofit methods take one parameter per Drive query parameter, and a Room query one per bound
+  # column. A Hilt constructor lists the class's collaborators; review judges those, not a count.
   LongParameterList:
-    ignoreAnnotated: ['Composable', 'GET', 'Inject', 'AssistedInject']
+    ignoreAnnotated: ['Composable', 'GET', 'POST', 'PATCH', 'DELETE', 'Query', 'Inject', 'AssistedInject']
   # A Room DAO is a list of queries. Private helpers (small composables above all) do not count,
   # and a ViewModel has one function per UI event, so classes get a few more than files.
   TooManyFunctions:
     ignoreAnnotated: ['Dao']
     ignorePrivate: true
     thresholdInClasses: 15
+    # A source's interface (DeviceStore: MediaStore's reads and writes) lists its operations.
+    thresholdInInterfaces: 15
 
 naming:
   FunctionNaming:

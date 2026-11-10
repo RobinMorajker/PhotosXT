@@ -21,4 +21,64 @@
     <string name="empty_public_body">Albums that people make public will appear here.</string>
     <string name="empty_library_title">Your library is empty</string>
     <string name="empty_library_body">Favorites, bookmarks, history, trash and more will live here.</string>
+
+    <!-- Transfers waiting for the user, and finished ones (spec §4.7). -->
+    <!-- %1$s is a file name, %2$s an album. -->
+    <string name="conflict_title">“%1$s” is already in %2$s</string>
+    <string name="conflict_body">Keep both adds a number to the new one\'s name. Replace moves the one there now to the trash.</string>
+    <plurals name="conflict_apply_all">
+        <item quantity="one">Do this for the other %1$,d</item>
+        <item quantity="other">Do this for all %1$,d</item>
+    </plurals>
+    <string name="conflict_skip">Skip</string>
+    <string name="conflict_replace">Replace</string>
+    <string name="conflict_keep_both">Keep both</string>
+    <plurals name="not_owned_title">
+        <item quantity="one">%1$,d item isn\'t yours to delete</item>
+        <item quantity="other">%1$,d items aren\'t yours to delete</item>
+    </plurals>
+    <string name="not_owned_body">They\'re shared with you in Google Drive, so only their owner can move them to the bin. Remove them from this album instead? The owner keeps them.</string>
+    <string name="not_owned_remove">Remove from album</string>
+    <string name="not_owned_keep">Keep them</string>
+    <string name="transfer_undo">Undo</string>
+    <string name="transfer_details">Details</string>
+    <plurals name="transfer_failed_message">
+        <item quantity="one">%1$,d item couldn\'t be done</item>
+        <item quantity="other">%1$,d items couldn\'t be done</item>
+    </plurals>
+    <!-- %1$d is how many items, %2$s the album or what the action was about. -->
+    <plurals name="transfer_copied">
+        <item quantity="one">Copied %1$,d item to %2$s</item>
+        <item quantity="other">Copied %1$,d items to %2$s</item>
+    </plurals>
+    <plurals name="transfer_moved">
+        <item quantity="one">Moved %1$,d item to %2$s</item>
+        <item quantity="other">Moved %1$,d items to %2$s</item>
+    </plurals>
+    <plurals name="transfer_trashed">
+        <item quantity="one">Moved %1$,d item to the trash</item>
+        <item quantity="other">Moved %1$,d items to the trash</item>
+    </plurals>
+    <plurals name="transfer_restored">
+        <item quantity="one">Restored %1$,d item</item>
+        <item quantity="other">Restored %1$,d items</item>
+    </plurals>
+    <plurals name="transfer_deleted">
+        <item quantity="one">Deleted %1$,d item forever</item>
+        <item quantity="other">Deleted %1$,d items forever</item>
+    </plurals>
+    <plurals name="transfer_renamed">
+        <item quantity="one">Renamed %1$,d item</item>
+        <item quantity="other">Renamed %1$,d items</item>
+    </plurals>
+    <plurals name="transfer_converted">
+        <item quantity="one">Saved %1$,d JPEG</item>
+        <item quantity="other">Saved %1$,d JPEGs</item>
+    </plurals>
+    <plurals name="transfer_removed">
+        <item quantity="one">Removed %1$,d item from its album</item>
+        <item quantity="other">Removed %1$,d items from their album</item>
+    </plurals>
+    <!-- %1$s is the new folder's name. -->
+    <string name="transfer_folder_made">Made the folder %1$s</string>
 </resources>

@@ -24,12 +24,34 @@ data class DriveFile(
     val driveId: String? = null,
     val imageMediaMetadata: ImageMetadata? = null,
     val videoMediaMetadata: VideoMetadata? = null,
-    val shortcutDetails: ShortcutDetails? = null
+    val shortcutDetails: ShortcutDetails? = null,
+    /** When the file went to the bin (RFC 3339), for the Trash view. */
+    val trashedTime: String? = null,
+    val ownedByMe: Boolean = true
 ) {
     val isFolder: Boolean get() = mimeType == FOLDER_MIME
     val isShortcut: Boolean get() = mimeType == SHORTCUT_MIME
     val isMedia: Boolean get() = mimeType.startsWith("image/") || mimeType.startsWith("video/")
 }
+
+/**
+ * The metadata PhotoXT writes: a new name, folder or bin state, or a whole new file (folder or
+ * upload). Fields left null are not sent ([DriveHttp.json] skips them), so an update changes only
+ * what is set. [id] names a file id made in advance by `generateIds`.
+ */
+@Serializable
+data class DriveFileWrite(
+    val id: String? = null,
+    val name: String? = null,
+    val mimeType: String? = null,
+    val parents: List<String>? = null,
+    val trashed: Boolean? = null,
+    /** RFC 3339; kept from the original on uploads, so dates survive the copy. */
+    val modifiedTime: String? = null
+)
+
+@Serializable
+data class GeneratedIds(val ids: List<String> = emptyList())
 
 @Serializable
 data class ImageMetadata(
@@ -98,6 +120,11 @@ const val FILE_FIELDS = "id,name,mimeType,size,md5Checksum,version,modifiedTime,
     "videoMediaMetadata(width,height,durationMillis),shortcutDetails(targetId,targetMimeType)"
 
 const val LIST_FIELDS = "nextPageToken,files($FILE_FIELDS)"
+
+/** What the Trash view shows of a binned Drive photo or video (spec §4.7, Trash). */
+const val TRASH_FIELDS = "nextPageToken,files(id,name,mimeType,size,md5Checksum,version," +
+    "modifiedTime,trashedTime,ownedByMe,hasThumbnail,thumbnailLink,parents," +
+    "imageMediaMetadata(width,height,rotation,time),videoMediaMetadata(durationMillis))"
 
 /** What the folder browser shows. */
 const val FOLDER_LIST_FIELDS =

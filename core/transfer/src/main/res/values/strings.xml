@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transfer_channel">Transfers</string>
+    <string name="transfer_notification_working">Working on your files…</string>
+    <string name="transfer_notification_copying">Copying to %1$s</string>
+    <string name="transfer_notification_moving">Moving to %1$s</string>
+    <string name="transfer_notification_converting">Converting %1$s</string>
+    <string name="transfer_notification_updating">Updating %1$s</string>
+    <string name="transfer_notification_waiting_title">PhotoXT needs you</string>
+    <plurals name="transfer_notification_waiting">
+        <item quantity="one">%1$,d transfer waits for your answer. Open PhotoXT to go on.</item>
+        <item quantity="other">%1$,d transfers wait for your answer. Open PhotoXT to go on.</item>
+    </plurals>
+</resources>

@@ -13,10 +13,13 @@ android {
 dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:sync"))
+    implementation(project(":core:transfer"))
     implementation(project(":core:ui"))
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.androidx.test.espresso.core)

@@ -40,4 +40,56 @@
         <item quantity="one">Share up to %1$,d item at a time.</item>
         <item quantity="other">Share up to %1$,d items at a time.</item>
     </plurals>
+    <!-- File operations (spec §4.7). -->
+    <string name="action_cut">Cut</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_convert_jpeg">Convert to JPEG</string>
+    <string name="action_export_pdf">Export as PDF</string>
+    <string name="action_copy_to_clipboard">Copy to clipboard</string>
+    <string name="action_new_folder">New folder</string>
+    <string name="action_rename_album">Rename album</string>
+    <string name="action_cut_album">Cut album</string>
+    <string name="action_copy_album">Copy album</string>
+    <string name="action_move_to_trash">Move to trash</string>
+    <string name="action_create">Create</string>
+    <plurals name="clip_items">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+    <plurals name="clip_albums">
+        <item quantity="one">%1$,d album</item>
+        <item quantity="other">%1$,d albums</item>
+    </plurals>
+    <!-- %1$s is "3 items" or "1 album". -->
+    <string name="paste_open_album">%1$s on the clipboard. Open an album to paste.</string>
+    <string name="paste_move_here">Move %1$s here</string>
+    <string name="paste_copy_here">Copy %1$s here</string>
+    <string name="paste_into_itself">An album can\'t go inside itself.</string>
+    <string name="paste_nothing">There\'s nothing to paste.</string>
+    <plurals name="delete_title">
+        <item quantity="one">Move %1$,d item to the trash?</item>
+        <item quantity="other">Move %1$,d items to the trash?</item>
+    </plurals>
+    <string name="delete_body">The phone\'s trash and Google Drive\'s bin keep them for 30 days.</string>
+    <plurals name="rename_title">
+        <item quantity="one">Rename %1$,d item</item>
+        <item quantity="other">Rename %1$,d items</item>
+    </plurals>
+    <string name="rename_pattern_help">{date} date taken, {time} time, {n} number, {name} old name</string>
+    <string name="new_folder_title">New folder</string>
+    <string name="rename_album_title">Rename album</string>
+    <plurals name="pdf_saved">
+        <item quantity="one">Saved a PDF of %1$,d page</item>
+        <item quantity="other">Saved a PDF of %1$,d pages</item>
+    </plurals>
+    <string name="pdf_failed">Couldn\'t save the PDF.</string>
+    <!-- %1$s is today's date, e.g. 2026-11-08. -->
+    <string name="pdf_file_name">PhotoXT %1$s.pdf</string>
+    <string name="convert_none">These are JPEGs already.</string>
+    <string name="copied_to_clipboard">Copied</string>
+    <string name="copy_to_clipboard_failed">Couldn\'t copy it.</string>
+    <string name="folder_creating">Making %1$s in Google Drive…</string>
+    <string name="folder_failed">Couldn\'t make the folder.</string>
 </resources>

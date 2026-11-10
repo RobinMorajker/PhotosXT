@@ -19,4 +19,9 @@
     <string name="access_limited">PhotoXT can see only the photos and videos you picked.</string>
     <string name="access_limited_manage">Manage</string>
     <string name="access_limited_allow_all">Allow all</string>
+
+    <!-- File operations (spec §4.7). -->
+    <string name="action_paste">Paste</string>
+    <string name="action_clear_clipboard">Clear clipboard</string>
+    <string name="action_cancel">Cancel</string>
 </resources>

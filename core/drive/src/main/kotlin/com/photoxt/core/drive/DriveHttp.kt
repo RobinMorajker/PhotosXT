@@ -93,7 +93,11 @@ class DriveHttp(private val tokens: DriveTokens, val baseUrl: HttpUrl = DEFAULT_
         private const val CONNECT_TIMEOUT_S = 15L
         private const val READ_TIMEOUT_S = 30L
 
-        val json = Json { ignoreUnknownKeys = true }
+        val json = Json {
+            ignoreUnknownKeys = true
+            // Updates send only the fields they set (DriveFileWrite).
+            explicitNulls = false
+        }
     }
 
     /** Signs each request with its account's token, and retries once with a new one on 401. */
@@ -135,6 +139,15 @@ val Throwable.driveStatus: Int?
         else -> null
     }
 
+/**
+ * The reason Drive gave for an error answer to a REST call, e.g. `insufficientFilePermissions`
+ * or `userRateLimitExceeded`; null for other errors. Reads the error body, so ask once.
+ */
+fun Throwable.driveReason(): String? {
+    val body = (this as? HttpException)?.response()?.errorBody()?.string() ?: return null
+    return Regex(""""reason"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1)
+}
+
 /** Runs [this] call on OkHttp's threads, cancelling it with the coroutine. */
 suspend fun Call.await(): Response = withContext(Dispatchers.IO) {
     suspendCancellableCoroutine { continuation ->
@@ -159,4 +172,8 @@ internal object DriveModule {
     @Provides
     @Singleton
     fun driveHttp(tokens: DriveTokens): DriveHttp = DriveHttp(tokens)
+
+    @Provides
+    @Singleton
+    fun driveUploads(http: DriveHttp): DriveUploads = DriveUploads(http)
 }

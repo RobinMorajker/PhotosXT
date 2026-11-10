@@ -100,6 +100,14 @@ class TimelineQueryTest {
         assertEquals("content://b", albums.first().coverUri)
     }
 
+    /** An album just made has no items yet: it leads the list, where it can be found. */
+    @Test
+    fun aNewEmptyAlbumComesFirst() = runTest {
+        database.mediaIndexDao().upsertAlbums(listOf(album("new").copy(pending = true)))
+        val albums = database.albumDao().albums().first()
+        assertEquals(listOf("new", "camera", "downloads"), albums.map { it.id })
+    }
+
     @Test
     fun viewerItemsKeepTheGridOrderAndKnowTheirPosition() = runTest {
         val all = MediaListQuery()

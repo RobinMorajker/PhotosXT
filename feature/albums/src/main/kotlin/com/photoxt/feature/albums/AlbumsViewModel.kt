@@ -22,6 +22,9 @@ import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
 import com.photoxt.core.sync.DriveSync
+import com.photoxt.core.transfer.Clip
+import com.photoxt.core.transfer.NewAlbumPlace
+import com.photoxt.core.transfer.Transfers
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,7 +70,9 @@ data class AlbumsUiState(
     val albums: List<AlbumTile>? = null,
     val accounts: List<AccountEntity> = emptyList(),
     /** Pull-to-refresh is running. */
-    val refreshing: Boolean = false
+    val refreshing: Boolean = false,
+    /** What the clipboard holds (spec §4.7); clipped albums can be pasted at the top. */
+    val clip: Clip? = null
 ) {
     /** Accounts whose Drive grant lapsed: the "Reconnect Google Drive" banner. */
     val reconnect: List<AccountEntity> get() = accounts.filter { it.needsConsent }
@@ -80,7 +85,8 @@ class AlbumsViewModel @Inject constructor(
     private val deviceMediaSync: DeviceMediaSync,
     private val googleAccounts: GoogleAccounts,
     private val driveAuth: DriveAuth,
-    private val driveSync: DriveSync
+    private val driveSync: DriveSync,
+    private val transfers: Transfers
 ) : ViewModel() {
     val permissions: Array<String> get() = mediaAccess.permissions
 
@@ -88,14 +94,17 @@ class AlbumsViewModel @Inject constructor(
 
     val uiState: StateFlow<AlbumsUiState> =
         combine(
-            mediaAccess.state,
-            albumDao.albums(),
-            googleAccounts.accounts,
-            driveSync.online,
-            refreshing
-        ) { access, albums, accounts, online, refreshing ->
-            AlbumsUiState(access, arrange(albums, accounts, online), accounts, refreshing)
-        }.stateIn(
+            combine(
+                mediaAccess.state,
+                albumDao.albums(),
+                googleAccounts.accounts,
+                driveSync.online,
+                refreshing
+            ) { access, albums, accounts, online, refreshing ->
+                AlbumsUiState(access, arrange(albums, accounts, online), accounts, refreshing)
+            },
+            transfers.clipboard
+        ) { state, clip -> state.copy(clip = clip) }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
             AlbumsUiState(mediaAccess.state.value)
@@ -138,6 +147,20 @@ class AlbumsViewModel @Inject constructor(
         viewModelScope.launch {
             if (driveAuth.completeConsent(accountId, data)) driveSync.reconnected(accountId)
         }
+    }
+
+    /**
+     * *New album* (spec §4.7): a phone album exists at once (its id, to open it); a Drive folder
+     * is made by the queue (null). Throws when the phone's storage isn't there.
+     */
+    suspend fun newAlbum(name: String, place: NewAlbumPlace): String? =
+        transfers.newAlbum(place, name)
+
+    /** Pastes clipped albums at the top of the phone or of a My Drive. */
+    suspend fun pasteAlbums(place: NewAlbumPlace): Result<Long> = transfers.pasteAlbums(place)
+
+    fun clearClipboard() {
+        viewModelScope.launch { transfers.clearClipboard() }
     }
 
     private companion object {

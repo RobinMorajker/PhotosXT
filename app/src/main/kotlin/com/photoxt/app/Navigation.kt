@@ -86,6 +86,14 @@ data class DriveBrowserKey(val accountId: String, val relinkAlbumId: String? = n
 @Serializable
 data object StorageKey : NavKey
 
+/** Trash (spec §4.7), on the Library stack. */
+@Serializable
+data object TrashKey : NavKey
+
+/** Transfers (spec §4.7), on the Library stack. */
+@Serializable
+data object TransfersKey : NavKey
+
 // Full-screen destinations shown over the tabs, so the grid stays underneath (spec §4.5): the
 // viewer flies back into it, and closing any of them returns to exactly where the user was.
 
@@ -157,6 +165,14 @@ class NavigationState internal constructor(
     /** Opens [key] on top of the current tab's stack. */
     fun open(key: NavKey) {
         backStacks.getValue(currentTab).add(key)
+    }
+
+    /** Shows [key] on [tab]'s stack, unless it is on top there already (a notification's tap). */
+    fun openIn(tab: TopLevelTab, key: NavKey) {
+        overlays.clear()
+        currentTab = tab
+        val stack = backStacks.getValue(tab)
+        if (stack.lastOrNull() != key) stack.add(key)
     }
 
     fun goBack() {

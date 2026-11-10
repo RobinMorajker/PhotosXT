@@ -86,8 +86,16 @@ interface MediaIndexDao {
     @Query("DELETE FROM media WHERE source = 'DEVICE' AND volume NOT IN (:volumes)")
     suspend fun deleteDeviceMediaOutside(volumes: List<String>)
 
+    /**
+     * Drops phone folders left without items. A new album PhotoXT made ([AlbumEntity.pending])
+     * stays empty until something is pasted into it, unless another album has its path by then.
+     */
     @Query(
-        "DELETE FROM album WHERE type = 'DEVICE_FOLDER' AND id NOT IN (SELECT albumId FROM media)"
+        """
+        DELETE FROM album WHERE type = 'DEVICE_FOLDER' AND id NOT IN (SELECT albumId FROM media)
+            AND (pending = 0 OR sourceRef IN (SELECT a.sourceRef FROM album a
+                WHERE a.pending = 0 AND a.type = 'DEVICE_FOLDER'))
+        """
     )
     suspend fun deleteEmptyDeviceAlbums()
 
@@ -117,8 +125,10 @@ interface PlaybackDao {
 @Dao
 interface AlbumDao {
     /**
-     * The Albums tab, newest first: every device folder with items, and every tracked Drive
-     * folder (empty or not) counting all items below it. Each has its newest item as the cover.
+     * The Albums tab: every device folder with items, every tracked Drive folder (empty or not)
+     * counting all items below it, and new phone albums still empty. Empty ones come first (one
+     * just made, or a Drive folder still syncing), then newest first, each with its newest item
+     * as the cover.
      */
     @Query(
         """
@@ -141,10 +151,10 @@ interface AlbumDao {
             LEFT JOIN media m ON m.albumId = x.id
             WHERE a.parentId IS NULL
             GROUP BY a.id
-            HAVING count > 0 OR a.type = 'DRIVE_FOLDER'
+            HAVING count > 0 OR a.type = 'DRIVE_FOLDER' OR a.pending = 1
         ) s
         LEFT JOIN media cv ON cv.id = s.coverId
-        ORDER BY s.latestTakenAt DESC
+        ORDER BY s.count = 0 DESC, s.latestTakenAt DESC
         """
     )
     fun albums(): Flow<List<AlbumSummary>>

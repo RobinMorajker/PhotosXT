@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -63,8 +64,11 @@ import com.photoxt.core.database.AccountEntity
 import com.photoxt.core.designsystem.PxtCollapsingHeader
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.model.MediaAccess
+import com.photoxt.core.transfer.Clip
 import com.photoxt.core.ui.LimitedAccessBanner
 import com.photoxt.core.ui.MediaAccessRequest
+import com.photoxt.core.ui.PasteBar
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -84,6 +88,7 @@ fun AlbumsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var sheet by rememberSaveable { mutableStateOf<AccountsSheetMode?>(null) }
+    var placeDialog by rememberSaveable { mutableStateOf<PlaceDialog?>(null) }
     val actions = rememberAccountActions(viewModel, onBrowseDrive, closeSheet = { sheet = null })
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -102,6 +107,9 @@ fun AlbumsScreen(
             }
         },
         onAccounts = { sheet = AccountsSheetMode.MANAGE },
+        onNewAlbum = { placeDialog = PlaceDialog.NEW_ALBUM },
+        onPasteAlbums = { placeDialog = PlaceDialog.PASTE },
+        onClearClipboard = viewModel::clearClipboard,
         onReconnect = actions.onReconnect,
         onRefresh = {
             scope.launch {
@@ -116,6 +124,57 @@ fun AlbumsScreen(
     sheet?.let { mode ->
         AccountsSheet(mode, state.accounts, actions, onDismiss = { sheet = null })
     }
+    placeDialog?.let { dialog ->
+        // The screen's scope: the dialog's own would end as it closes, before the album is made.
+        PlaceDialogFor(dialog, state, viewModel, scope, onOpenAlbum) { placeDialog = null }
+    }
+}
+
+/** Which question about a place is open: a new album, or where clipped albums go. */
+private enum class PlaceDialog { NEW_ALBUM, PASTE }
+
+@Composable
+private fun PlaceDialogFor(
+    dialog: PlaceDialog,
+    state: AlbumsUiState,
+    viewModel: AlbumsViewModel,
+    scope: CoroutineScope,
+    onOpenAlbum: (id: String, title: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val resources = LocalResources.current
+    val newAlbum = dialog == PlaceDialog.NEW_ALBUM
+    fun toast(text: String) = Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
+    AlbumPlaceDialog(
+        title = stringResource(
+            if (newAlbum) R.string.new_album_title else R.string.paste_albums_title
+        ),
+        confirm = stringResource(
+            if (newAlbum) R.string.action_create else R.string.action_paste_here
+        ),
+        accounts = state.accounts,
+        askName = newAlbum,
+        onConfirm = { name, place ->
+            onDismiss()
+            scope.launch {
+                if (newAlbum) {
+                    runCatching { viewModel.newAlbum(name, place) }
+                        .onSuccess { id ->
+                            if (id != null) {
+                                onOpenAlbum(id, name)
+                            } else {
+                                toast(resources.getString(R.string.new_album_drive, name))
+                            }
+                        }
+                        .onFailure { toast(resources.getString(R.string.new_album_failed)) }
+                } else if (viewModel.pasteAlbums(place).isFailure) {
+                    toast(resources.getString(R.string.paste_failed))
+                }
+            }
+        },
+        onDismiss = onDismiss
+    )
 }
 
 /** Adding, removing and reconnecting Google accounts, with their system screens. */
@@ -185,6 +244,9 @@ fun AlbumsContent(
     modifier: Modifier = Modifier,
     onAddDriveFolder: () -> Unit = {},
     onAccounts: () -> Unit = {},
+    onNewAlbum: () -> Unit = {},
+    onPasteAlbums: () -> Unit = {},
+    onClearClipboard: () -> Unit = {},
     onReconnect: (accountId: String) -> Unit = {},
     onRefresh: () -> Unit = {}
 ) {
@@ -203,6 +265,9 @@ fun AlbumsContent(
             empty = empty,
             onAddDriveFolder = onAddDriveFolder,
             onAccounts = onAccounts,
+            onNewAlbum = onNewAlbum,
+            onPasteAlbums = onPasteAlbums,
+            onClearClipboard = onClearClipboard,
             onReconnect = onReconnect
         )
     }
@@ -219,6 +284,9 @@ private fun AlbumsColumn(
     empty: @Composable () -> Unit,
     onAddDriveFolder: () -> Unit,
     onAccounts: () -> Unit,
+    onNewAlbum: () -> Unit,
+    onPasteAlbums: () -> Unit,
+    onClearClipboard: () -> Unit,
     onReconnect: (accountId: String) -> Unit
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
@@ -228,7 +296,7 @@ private fun AlbumsColumn(
         PxtCollapsingHeader(
             title = title,
             scrollBehavior = scrollBehavior,
-            actions = { HeaderActions(onAddDriveFolder, onAccounts) }
+            actions = { HeaderActions(onNewAlbum, onAddDriveFolder, onAccounts) }
         )
         val albums = state.albums
         // Without phone access and without Drive albums there is nothing else to show.
@@ -268,12 +336,41 @@ private fun AlbumsColumn(
                 AlbumTileView(album, name, onClick = { onOpenAlbum(album.id, name) })
             }
         }
+        state.clip?.let { AlbumsPasteBar(it, onPasteAlbums, onClearClipboard) }
     }
 }
 
-/** "Add Drive folder" and the account button (spec §4.1: the header's account avatar). */
+/** The clipboard on the Albums tab: clipped albums paste at the top; items need an album. */
 @Composable
-private fun HeaderActions(onAddDriveFolder: () -> Unit, onAccounts: () -> Unit) {
+private fun AlbumsPasteBar(clip: Clip, onPasteAlbums: () -> Unit, onClearClipboard: () -> Unit) {
+    val albums = clip.albumIds.isNotEmpty()
+    PasteBar(
+        text = if (albums) {
+            pluralStringResource(R.plurals.clip_albums_bar, clip.size, clip.size)
+        } else {
+            pluralStringResource(R.plurals.clip_items_bar, clip.size, clip.size)
+        },
+        onClear = onClearClipboard,
+        onPaste = onPasteAlbums.takeIf { albums }
+    )
+}
+
+/**
+ * *New album* (spec §4.7), "Add Drive folder" and the account button (spec §4.1: the header's
+ * account avatar).
+ */
+@Composable
+private fun HeaderActions(
+    onNewAlbum: () -> Unit,
+    onAddDriveFolder: () -> Unit,
+    onAccounts: () -> Unit
+) {
+    IconButton(onClick = onNewAlbum) {
+        Icon(
+            painterResource(DesignR.drawable.ic_create_new_folder),
+            contentDescription = stringResource(R.string.action_new_album)
+        )
+    }
     IconButton(onClick = onAddDriveFolder) {
         Icon(
             painterResource(DesignR.drawable.ic_add),

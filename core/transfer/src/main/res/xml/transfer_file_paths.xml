@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only Drive originals PhotoXT downloaded can be handed out, never its database or settings. -->
+<paths>
+    <files-path name="originals" path="media/" />
+    <files-path name="offline" path="media-offline/" />
+</paths>

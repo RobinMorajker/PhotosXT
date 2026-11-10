@@ -1,5 +1,7 @@
 package com.photoxt.feature.timeline
 
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -20,10 +22,14 @@ import com.photoxt.core.media.DeviceMediaSync
 import com.photoxt.core.media.MediaAccessMonitor
 import com.photoxt.core.media.MediaRef
 import com.photoxt.core.media.thumbnailOf
+import com.photoxt.core.model.ClipboardMode
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
+import com.photoxt.core.transfer.Clip
+import com.photoxt.core.transfer.SystemClipboard
+import com.photoxt.core.transfer.Transfers
 import com.photoxt.core.ui.GridCell
 import com.photoxt.core.ui.GridDensity
 import com.photoxt.core.ui.TimelineLayout
@@ -31,6 +37,8 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -44,6 +52,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Immutable
 data class TimelineUiState(
@@ -56,7 +65,9 @@ data class TimelineUiState(
     /** A Drive album's subfolders and sync state; null for Pictures and phone albums. */
     val drive: DriveAlbumInfo? = null,
     /** Pull-to-refresh is running. */
-    val refreshing: Boolean = false
+    val refreshing: Boolean = false,
+    /** What the clipboard holds (spec §4.7), shown as the paste bar. */
+    val clip: Clip? = null
 )
 
 /** What a Drive album shows besides its items (spec §4.2, §4.3). */
@@ -88,7 +99,9 @@ class TimelineViewModel @AssistedInject constructor(
     private val mediaAccess: MediaAccessMonitor,
     private val deviceMediaSync: DeviceMediaSync,
     private val savedState: SavedStateHandle,
-    private val driveAlbums: DriveAlbums
+    private val driveAlbums: DriveAlbums,
+    private val transfers: Transfers,
+    private val systemClipboard: SystemClipboard
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -128,6 +141,9 @@ class TimelineViewModel @AssistedInject constructor(
     /** Whether this is a Drive album, which needs no access to the phone's media. */
     private val isDrive = albumId?.let(DriveAlbums::isDrive) == true
 
+    /** A phone folder's album: renaming it moves its items into a new album. */
+    val isPhoneAlbum: Boolean get() = albumId != null && !isDrive
+
     private val access: Flow<MediaAccess> =
         if (isDrive) flowOf(MediaAccess.FULL) else mediaAccess.state
 
@@ -138,8 +154,11 @@ class TimelineViewModel @AssistedInject constructor(
         combine(
             combine(access, filter, density, layout, selection, ::TimelineUiState),
             driveInfo,
-            refreshing
-        ) { state, drive, refreshing -> state.copy(drive = drive, refreshing = refreshing) }
+            refreshing,
+            transfers.clipboard
+        ) { state, drive, refreshing, clip ->
+            state.copy(drive = drive, refreshing = refreshing, clip = clip)
+        }
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
@@ -172,6 +191,7 @@ class TimelineViewModel @AssistedInject constructor(
         val id = albumId ?: return
         viewModelScope.launch { driveAlbums.setOffline(id, offline) }
     }
+
     fun setFilter(value: MediaFilter) {
         savedState[KEY_FILTER] = value
     }
@@ -214,6 +234,16 @@ class TimelineViewModel @AssistedInject constructor(
         albumId?.let { driveAlbums.remove(it) }
     }
 
+    /** Cut, copy, paste, delete and the rest (spec §4.7), on the selection and this album. */
+    val fileOps = TimelineFileOps(
+        albumId,
+        selection,
+        viewModelScope,
+        transfers,
+        systemClipboard,
+        mediaDao
+    )
+
     /** The two selected items for Compare, the newer first, or null unless exactly two. */
     fun comparePair(): Pair<String, String>? {
         val selected = selection.value.entries.sortedByDescending { it.value }
@@ -245,6 +275,100 @@ class TimelineViewModel @AssistedInject constructor(
         private const val KEY_FILTER = "filter"
         private const val KEY_DENSITY = "density"
     }
+}
+
+/**
+ * A timeline's file operations (spec §4.7): on its selection, which each one ends once it is
+ * queued, and on its album.
+ */
+class TimelineFileOps internal constructor(
+    private val albumId: String?,
+    private val selection: MutableStateFlow<Map<String, Long>>,
+    private val scope: CoroutineScope,
+    private val transfers: Transfers,
+    private val systemClipboard: SystemClipboard,
+    private val mediaDao: MediaDao
+) {
+    private val selected: List<String> get() = selection.value.keys.toList()
+
+    /** Cut or Copy: the selection goes on the clipboard, and the selection ends. */
+    fun clip(mode: ClipboardMode) {
+        val ids = selected
+        scope.launch {
+            transfers.clip(mode, ids)
+            selection.value = emptyMap()
+        }
+    }
+
+    /** Cut or Copy of this whole album, with everything below it. */
+    fun clipAlbum(mode: ClipboardMode) {
+        val id = albumId ?: return
+        scope.launch { transfers.clip(mode, emptyList(), listOf(id)) }
+    }
+
+    /** Pastes the clipboard into this album; the failure says why nothing was queued. */
+    suspend fun paste(): Result<Long> {
+        val id = albumId ?: return Result.failure(IllegalStateException("No album"))
+        return transfers.paste(id)
+    }
+
+    fun clearClipboard() {
+        scope.launch { transfers.clearClipboard() }
+    }
+
+    /** Moves the selection to the trash (spec §4.7); the app offers Undo once it's done. */
+    fun delete(title: String) {
+        val ids = selected
+        scope.launch {
+            transfers.trash(ids, title)
+            selection.value = emptyMap()
+        }
+    }
+
+    /** Batch rename with [pattern] (spec §4.7). */
+    fun rename(pattern: String, title: String) {
+        val ids = selected
+        scope.launch {
+            transfers.rename(ids, pattern, title)
+            selection.value = emptyMap()
+        }
+    }
+
+    /** Saves a JPEG copy of each selected photo that isn't one; false when none needs it. */
+    suspend fun convert(title: String): Boolean {
+        val queued = transfers.convertToJpeg(selected, title) != null
+        if (queued) selection.value = emptyMap()
+        return queued
+    }
+
+    /** Writes the selected photos as a PDF to [uri]; returns the pages written (0 on failure). */
+    suspend fun exportPdf(resolver: ContentResolver, uri: Uri): Int {
+        val ids = selected
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                resolver.openOutputStream(uri)?.use { transfers.exportPdf(ids, it) } ?: 0
+            }.getOrDefault(0)
+        }.also { if (it > 0) selection.value = emptyMap() }
+    }
+
+    /** *Copy to system clipboard* for the one selected item; false when it couldn't be. */
+    suspend fun copyToSystemClipboard(): Boolean {
+        val id = selection.value.keys.singleOrNull() ?: return false
+        val item = mediaDao.viewerItem(id) ?: return false
+        return systemClipboard.copy(id, item.contentUri, item.name)
+    }
+
+    /**
+     * A new folder inside this album (spec §4.7, *New album*): on the phone its (empty) album
+     * id, to open it; in Drive null, since the queue makes it.
+     */
+    suspend fun newFolder(name: String): String? {
+        val place = albumId?.let { transfers.placeIn(it) } ?: return null
+        return transfers.newAlbum(place, name)
+    }
+
+    /** Renames this album's folder; null when nothing changed. */
+    suspend fun renameAlbum(name: String): Long? = albumId?.let { transfers.renameAlbum(it, name) }
 }
 
 internal fun TimelineRow.toCell(): GridCell {

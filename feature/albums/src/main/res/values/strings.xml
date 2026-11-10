@@ -48,6 +48,27 @@
     <string name="browser_pick_relink">Open the folder this album should follow</string>
     <string name="browser_already_album">That folder is already an album.</string>
 
+    <!-- New albums and pasting albums (spec §4.7). -->
+    <string name="action_new_album">New album</string>
+    <string name="new_album_title">New album</string>
+    <string name="new_album_name">Name</string>
+    <string name="action_create">Create</string>
+    <string name="place_phone">On this phone</string>
+    <!-- %1$s is a Google account's e-mail address. -->
+    <string name="place_drive">In Google Drive (%1$s)</string>
+    <string name="new_album_failed">Couldn\'t make the album.</string>
+    <string name="new_album_drive">Making %1$s in Google Drive…</string>
+    <string name="paste_albums_title">Paste albums where?</string>
+    <string name="action_paste_here">Paste</string>
+    <string name="paste_failed">There\'s nothing to paste.</string>
+    <plurals name="clip_albums_bar">
+        <item quantity="one">%1$,d album on the clipboard</item>
+        <item quantity="other">%1$,d albums on the clipboard</item>
+    </plurals>
+    <plurals name="clip_items_bar">
+        <item quantity="one">%1$,d item on the clipboard. Open an album to paste.</item>
+        <item quantity="other">%1$,d items on the clipboard. Open an album to paste.</item>
+    </plurals>
     <plurals name="album_item_count">
         <item quantity="one">%1$,d item</item>
         <item quantity="other">%1$,d items</item>

@@ -96,7 +96,7 @@ internal fun ViewerTopBar(
     }
 }
 
-/** Share and details, plus Play, Motion or 360° when the item has them. */
+/** Share, delete and details, plus Play, Motion or 360° when the item has them. */
 @Composable
 internal fun ViewerBottomBar(actions: ChromeActions, modifier: Modifier = Modifier) {
     CompositionLocalProvider(LocalContentColor provides Color.White) {
@@ -116,6 +116,7 @@ internal fun ViewerBottomBar(actions: ChromeActions, modifier: Modifier = Modifi
                 BarAction(DesignR.drawable.ic_360, R.string.action_panorama, it)
             }
             BarAction(DesignR.drawable.ic_share, R.string.action_share, actions.onShare)
+            BarAction(DesignR.drawable.ic_delete, R.string.action_delete, actions.onDelete)
             BarAction(DesignR.drawable.ic_info, R.string.action_details, actions.onDetails)
         }
     }
