@@ -92,6 +92,20 @@ interface DriveApi {
         @Query("supportsAllDrives") supportsAllDrives: Boolean = true
     ): DriveFile
 
+    /**
+     * Takes [id] out of folder [removeParents] and reads no answer: when the user doesn't own
+     * the file, Drive answers 204 with no body once they can no longer see it (spec §4.7).
+     */
+    @PATCH("drive/v3/files/{id}")
+    suspend fun removeParent(
+        @Tag account: DriveAccount,
+        @Path("id") id: String,
+        @Body file: DriveFileWrite,
+        @Query("removeParents") removeParents: String,
+        @Query("fields") fields: String = "id",
+        @Query("supportsAllDrives") supportsAllDrives: Boolean = true
+    )
+
     /** Creates a file without content: a folder, for *New album* and recursive pastes. */
     @POST("drive/v3/files")
     suspend fun create(

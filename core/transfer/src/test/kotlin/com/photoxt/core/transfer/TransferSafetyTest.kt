@@ -324,6 +324,20 @@ class TransferSafetyTest {
         h.drain()
         assertFalse(h.drive.files.getValue("x1").trashed)
         assertEquals(emptyList<String>(), h.drive.files.getValue("x1").parents)
+        assertEquals(TransferState.DONE, h.dao.jobs(batch).single().state)
+    }
+
+    @Test
+    fun renamingInDriveKeepsTheTimeAVideoIsDatedBy() = runTest {
+        h.account("a")
+        val album = h.driveAlbum("a", "f1", "Holidays")
+        val item = h.driveItem("a", album, "f1", "x1", "x.mp4", bytes(100))
+
+        h.transfers.rename(listOf(item), "trip_{n}", "1 item")
+        h.drain()
+        val file = h.drive.files.getValue("x1")
+        assertTrue(file.name.startsWith("trip_"))
+        assertEquals(FakeDrive.MODIFIED_TIME, file.modifiedTime)
     }
 
     /** Runs the queue, moving the clock past each backoff, until nothing is left to retry. */

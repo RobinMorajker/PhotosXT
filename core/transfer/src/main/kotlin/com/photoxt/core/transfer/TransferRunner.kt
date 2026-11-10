@@ -200,10 +200,14 @@ class TransferWorker(context: Context, params: WorkerParameters) :
     override suspend fun doWork(): Result {
         val entry = applicationContext.transferEntry()
         val notifications = entry.notifications()
-        // Android 12+ may refuse a foreground service started from the background: run anyway.
+        // Android 12+ refuses a foreground service started from the background (seen when the
+        // queue resumed at a background start): the work runs anyway, and its progress goes out
+        // as a plain notification under the same id, which also updates the service's own.
         runCatching { setForeground(notifications.foreground(null)) }
-        entry.runner().runAll { progress ->
-            runCatching { setForeground(notifications.foreground(progress)) }
+        try {
+            entry.runner().runAll { notifications.showProgress(it) }
+        } finally {
+            notifications.clearProgress()
         }
         return Result.success()
     }
@@ -245,6 +249,14 @@ class TransferNotifications @Inject constructor(
         progress(progress),
         ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
     )
+
+    /** The progress notification when no job or service shows it (spec §4.7). */
+    @SuppressLint("MissingPermission")
+    fun showProgress(progress: TransferProgress?) {
+        if (manager.areNotificationsEnabled()) manager.notify(PROGRESS_ID, progress(progress))
+    }
+
+    fun clearProgress() = manager.cancel(PROGRESS_ID)
 
     /** Some transfers wait for an answer (a permission, a conflict) while PhotoXT is hidden. */
     @SuppressLint("MissingPermission")
@@ -324,7 +336,7 @@ class AppTransferEnvironment @Inject constructor(
     override val workDir: File get() = File(context.filesDir, "transfers")
 
     override suspend fun driveWritten(account: String) {
-        sync.syncAccount(account)
+        sync.syncAfterWrite(account)
     }
 
     override suspend fun trackFolder(account: String, folderId: String, name: String) {

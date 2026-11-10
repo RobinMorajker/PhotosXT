@@ -44,6 +44,7 @@ import com.photoxt.core.transfer.consentUri
 import com.photoxt.core.transfer.mediaStoreRequest
 import com.photoxt.core.transfer.source
 import com.photoxt.core.transfer.target
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -109,6 +110,10 @@ private fun MediaStorePrompt(
             if (pending.none { it.askKey in asked }) asking = null
             return@LaunchedEffect
         }
+        if (pending.isEmpty()) return@LaunchedEffect
+        // The rest of a batch reaches the same wait a moment later: settle first, then ask once
+        // for all of it (a rename of three photos asked twice). A new wait restarts the pause.
+        delay(PROMPT_SETTLE_MS)
         val group = pending.groupBy { it.waitFor }.entries.firstOrNull() ?: return@LaunchedEffect
         val kind = group.key ?: return@LaunchedEffect
         val jobs = group.value.take(MAX_URIS)
@@ -314,3 +319,4 @@ private val DEVICE_WAITS = setOf(
 
 /** MediaStore takes a few hundred items per request comfortably. */
 private const val MAX_URIS = 500
+private const val PROMPT_SETTLE_MS = 1_000L

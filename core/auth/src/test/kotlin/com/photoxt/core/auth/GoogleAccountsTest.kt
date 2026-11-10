@@ -27,4 +27,14 @@ class GoogleAccountsTest {
         assertFalse(DriveScope.FULL.grantedIn(readonly))
         assertFalse(DriveScope.READONLY.grantedIn(""))
     }
+
+    @Test
+    fun anAccountWithFullDriveIsNeverAskedForReadOnly() {
+        val full = DriveScope.FULL.uri
+        val readonly = DriveScope.READONLY.uri
+        assertEquals(DriveScope.FULL, DriveScope.READONLY.toAsk("openid $full"))
+        assertEquals(DriveScope.READONLY, DriveScope.READONLY.toAsk("openid $readonly"))
+        assertEquals(DriveScope.READONLY, DriveScope.READONLY.toAsk(""))
+        assertEquals(DriveScope.FULL, DriveScope.FULL.toAsk(readonly))
+    }
 }

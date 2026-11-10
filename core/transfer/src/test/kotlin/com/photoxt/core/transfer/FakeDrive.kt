@@ -38,7 +38,8 @@ class FakeDrive : Dispatcher() {
         val parents: MutableList<String>,
         var content: ByteArray,
         var trashed: Boolean = false,
-        var md5: String? = md5(content)
+        var md5: String? = md5(content),
+        var modifiedTime: String = MODIFIED_TIME
     )
 
     val server = MockWebServer().also { it.dispatcher = this }
@@ -255,10 +256,15 @@ class FakeDrive : Dispatcher() {
             }
             file.trashed = trashed.jsonPrimitive.boolean
         }
-        body.string("name")?.let { file.name = it }
+        val renamed = body.string("name")?.also { file.name = it } != null
+        // Drive dates a rename now, unless the call sets the time itself.
+        file.modifiedTime = body.string("modifiedTime")
+            ?: if (renamed) RENAMED_AT else file.modifiedTime
         remove?.split(',')?.forEach { file.parents.remove(it) }
         add?.split(',')?.forEach { if (it !in file.parents) file.parents += it }
-        return json(file.json())
+        // As Drive does: out of the shared folder, someone else's file is out of sight, so
+        // there is nothing to answer with (seen on a phone, 2026-11-10).
+        return if (remove != null && id in notOwned) status(204) else json(file.json())
     }
 
     private fun media(file: File, request: RecordedRequest): MockResponse {
@@ -322,6 +328,7 @@ class FakeDrive : Dispatcher() {
             put("parents", JsonArray(parents.map(::JsonPrimitive)))
             put("trashed", JsonPrimitive(trashed))
             put("version", JsonPrimitive("1"))
+            put("modifiedTime", JsonPrimitive(modifiedTime))
             put("ownedByMe", JsonPrimitive(id !in notOwned))
             if (mime != FOLDER) put("size", JsonPrimitive(content.size.toString()))
             md5?.let { put("md5Checksum", JsonPrimitive(it)) }
@@ -345,6 +352,10 @@ class FakeDrive : Dispatcher() {
 
     companion object {
         const val FOLDER = "application/vnd.google-apps.folder"
+
+        /** Every file's modified time until something changes it: the harness items' time. */
+        const val MODIFIED_TIME = "2023-11-14T22:13:20Z"
+        const val RENAMED_AT = "2026-11-10T18:13:46Z"
         private const val HOLD_SECONDS = 30L
 
         fun md5(bytes: ByteArray): String =

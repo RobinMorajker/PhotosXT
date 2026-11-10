@@ -71,6 +71,11 @@
         <item quantity="one">%1$,d item failed</item>
         <item quantity="other">%1$,d items failed</item>
     </plurals>
+    <!-- A batch whose items were all left as they were: a name conflict skipped, a file kept. -->
+    <plurals name="transfer_skipped">
+        <item quantity="one">Skipped · %1$,d item</item>
+        <item quantity="other">Skipped · %1$,d items</item>
+    </plurals>
     <string name="transfer_pause">Pause</string>
     <string name="transfer_resume">Resume</string>
     <string name="transfer_cancel">Cancel</string>

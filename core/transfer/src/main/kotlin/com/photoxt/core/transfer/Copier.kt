@@ -59,7 +59,7 @@ internal class Copier(
         // Drive folders may share a name; only items take a suffix.
         val name = if (src.isFolder) wanted else nameIn(run, folderOf(src), wanted)
         if (src.isDrive) {
-            drive.rename(checkNotNull(src.account), checkNotNull(src.fileId), name)
+            drive.rename(checkNotNull(src.account), checkNotNull(src.fileId), name, src.modifiedAt)
         } else {
             val uri = checkNotNull(src.uri)
             run.deviceWrite(WaitFor.DEVICE_WRITE, uri) { device.rename(uri, name) }

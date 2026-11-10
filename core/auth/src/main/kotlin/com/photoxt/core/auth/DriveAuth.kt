@@ -37,6 +37,14 @@ enum class DriveScope(val uri: String) {
         val scopes = granted.split(' ')
         return uri in scopes || (this == READONLY && FULL.uri in scopes)
     }
+
+    /**
+     * What to ask Google for when this scope is needed and [granted] are held: full Drive
+     * when it covers this one, since asking read-only of an account that gave full Drive at
+     * its first write shows a second consent screen.
+     */
+    fun toAsk(granted: String): DriveScope =
+        if (this == READONLY && FULL.grantedIn(granted)) FULL else this
 }
 
 /** What asking Google for Drive access came to. */
@@ -87,11 +95,12 @@ class DriveAuth @Inject constructor(
     /** Asks for [scope] on [accountId]'s behalf. Screens launch the consent screen if needed. */
     suspend fun authorize(accountId: String, scope: DriveScope): Authorization {
         val account = checkNotNull(dao.account(accountId)) { "No such account" }
+        val asked = scope.toAsk(account.scopes)
         val request = AuthorizationRequest.builder()
-            .setRequestedScopes(listOf(Scope(scope.uri)))
+            .setRequestedScopes(listOf(Scope(asked.uri)))
             .setAccount(account.androidAccount())
             .build()
-        return handle(accountId, client.authorize(request).await(), scope)
+        return handle(accountId, client.authorize(request).await(), asked)
     }
 
     /** The consent screen's answer for [accountId]: true when Drive access was granted. */

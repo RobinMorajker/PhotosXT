@@ -14,6 +14,7 @@ import com.photoxt.core.media.DriveOriginals
 import java.io.File
 import java.io.FilterInputStream
 import java.io.InputStream
+import java.time.Instant
 import javax.inject.Inject
 import okhttp3.Response
 
@@ -78,16 +79,31 @@ class DriveFiles @Inject constructor(
     suspend fun parentOf(account: String, fileId: String): String? =
         api.get(DriveAccount(account), fileId, "id,parents").parents.firstOrNull()
 
-    suspend fun rename(account: String, fileId: String, name: String): DriveFile =
-        api.update(DriveAccount(account), fileId, DriveFileWrite(name = name))
+    /**
+     * Renames [fileId], keeping its modified time [modifiedAt]: Drive would set it to now, and a
+     * file without a capture time in its EXIF (a video, a screenshot) is dated by it.
+     */
+    suspend fun rename(
+        account: String,
+        fileId: String,
+        name: String,
+        modifiedAt: Long?
+    ): DriveFile {
+        val kept = modifiedAt?.let { Instant.ofEpochMilli(it).toString() }
+        return api.update(
+            DriveAccount(account),
+            fileId,
+            DriveFileWrite(name = name, modifiedTime = kept)
+        )
+    }
 
     /** Bins [fileId], or takes it back out of the bin. */
     suspend fun setTrashed(account: String, fileId: String, trashed: Boolean): DriveFile =
         api.update(DriveAccount(account), fileId, DriveFileWrite(trashed = trashed))
 
     /** Takes [fileId] out of folder [folderId] without binning it (spec §4.7, not owned). */
-    suspend fun removeFrom(account: String, fileId: String, folderId: String): DriveFile =
-        api.update(DriveAccount(account), fileId, DriveFileWrite(), removeParents = folderId)
+    suspend fun removeFrom(account: String, fileId: String, folderId: String) =
+        api.removeParent(DriveAccount(account), fileId, DriveFileWrite(), removeParents = folderId)
 
     /** Deletes [fileId] for good; one already gone counts as deleted. */
     suspend fun delete(account: String, fileId: String) {

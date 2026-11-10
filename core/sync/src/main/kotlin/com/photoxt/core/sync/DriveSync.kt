@@ -39,8 +39,8 @@ import kotlinx.coroutines.sync.withLock
  * between nested and merged, and filling grid thumbnails behind the visible ones.
  *
  * Sync runs on app start and return to the foreground (at most every 30 s), on pull-to-refresh,
- * every 6 hours ([SyncWork]) and after PhotoXT's own writes ([syncAccount]). One account's scans,
- * syncs and removals run one at a time, so a scan's sweep never races a change. Scans
+ * every 6 hours ([SyncWork]) and after PhotoXT's own writes ([syncAfterWrite]). One account's
+ * scans, syncs and removals run one at a time, so a scan's sweep never races a change. Scans
  * interrupted by the app being closed, or asked for by a change, resume at the next start.
  */
 @Singleton
@@ -67,6 +67,7 @@ class DriveSync @Inject constructor(
     private var lastForegroundSync = Long.MIN_VALUE
 
     private val fills = ConcurrentHashMap<String, Job>()
+    private val followUps = ConcurrentHashMap<String, Job>()
 
     /** Whether the phone has a network; Drive albums show "offline" without one. */
     val online: StateFlow<Boolean> get() = conditions.online
@@ -110,8 +111,8 @@ class DriveSync @Inject constructor(
     /**
      * Applies [accountId]'s Drive changes (spec §5.5), then rescans trees whose shape changed,
      * pins what joined albums kept offline, deletes files that are due and makes missing
-     * thumbnails. Call after every write PhotoXT makes to Drive. False when Drive could not be
-     * reached or needs the user's consent again.
+     * thumbnails. After PhotoXT's own writes, call [syncAfterWrite] instead. False when Drive
+     * could not be reached or needs the user's consent again.
      */
     suspend fun syncAccount(accountId: String): Boolean {
         val outcome = runCatching { locked(accountId) { changes.sync(accountId) } }
@@ -127,6 +128,25 @@ class DriveSync @Inject constructor(
             else -> outcome.getOrNull()?.let { synced(it) }
         }
         return error == null
+    }
+
+    /**
+     * Call after every write PhotoXT makes to [accountId]'s Drive (spec §4.3): syncs now, then
+     * twice more within half a minute, because Drive's Changes feed can list a write a few
+     * seconds late (a paste's last item stayed hidden until the next sync). A later write starts
+     * the follow-ups again. False when Drive could not be reached.
+     */
+    suspend fun syncAfterWrite(accountId: String): Boolean {
+        val synced = syncAccount(accountId)
+        // ponytail: fixed follow-up times, poll for the written file ids if Drive lags longer
+        val next = scope.launch {
+            FOLLOW_UPS_MS.forEach {
+                delay(it)
+                syncAccount(accountId)
+            }
+        }
+        followUps.put(accountId, next)?.cancel()
+        return synced
     }
 
     private suspend fun synced(result: ChangesResult) {
@@ -324,6 +344,7 @@ class DriveSync @Inject constructor(
         const val BATCH = 200
         const val PAUSE_RECHECK_MS = 30_000L
         const val FOREGROUND_DEBOUNCE_MS = 30_000L
+        val FOLLOW_UPS_MS = longArrayOf(5_000L, 25_000L)
         const val ALL = "*"
     }
 }
