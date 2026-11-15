@@ -4,6 +4,7 @@ import com.photoxt.core.common.PxtLog
 import com.photoxt.core.drive.DriveFile
 import com.photoxt.core.drive.DriveFileWrite
 import com.photoxt.core.drive.DriveUploads
+import com.photoxt.core.drive.TAKEN_AT_PROPERTY
 import com.photoxt.core.drive.UploadSession
 import com.photoxt.core.drive.UploadSessionGoneException
 import com.photoxt.core.drive.UploadStatus
@@ -32,9 +33,9 @@ import java.time.Instant
  * source only after that check (spec §0 rule 4); a copy that fails it is deleted and retried.
  */
 internal class Copier(
-    private val device: DeviceStore,
-    private val drive: DriveFiles,
-    private val env: TransferEnvironment
+    val device: DeviceStore,
+    val drive: DriveFiles,
+    val env: TransferEnvironment
 ) {
     /** Copies or cuts one item; a cut whose copy is verified has only its source left to remove. */
     suspend fun transfer(run: JobRun): Outcome {
@@ -95,7 +96,9 @@ internal class Copier(
         if (run.progress.removeInstead) {
             drive.removeFrom(account, fileId, checkNotNull(file.parentId))
         } else {
-            runCatching { drive.setTrashed(account, fileId, trashed = true) }.onFailure { error ->
+            runCatching {
+                drive.update(account, fileId, DriveFileWrite(trashed = true))
+            }.onFailure { error ->
                 // The user decides about a file they can't bin: leave it, or take it out.
                 throw if (error.refusal == Refusal.FILE) {
                     WaitException(WaitFor.NOT_OWNED, error)
@@ -198,7 +201,7 @@ internal class Copier(
     }
 
     /** [wanted], or its first free " (n)" form in [folder]: chosen once, then kept in the job. */
-    private suspend fun nameIn(run: JobRun, folder: Destination, wanted: String): String {
+    suspend fun nameIn(run: JobRun, folder: Destination, wanted: String): String {
         run.progress.name?.let { return it }
         val name = if (existing(folder, wanted) == null) wanted else freeName(folder, wanted)
         run.save(run.progress.copy(name = name))
@@ -220,10 +223,14 @@ internal class Copier(
     private suspend fun binForReplace(run: JobRun, existing: FileRef) {
         run.save(run.progress.copy(replaces = existing))
         if (existing.isDrive) {
-            drive.setTrashed(checkNotNull(existing.account), checkNotNull(existing.fileId), true)
+            drive.update(
+                checkNotNull(existing.account),
+                checkNotNull(existing.fileId),
+                DriveFileWrite(trashed = true)
+            )
         } else {
             val uri = checkNotNull(existing.uri)
-            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.trash(uri) }
+            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.setTrashed(uri, trashed = true) }
         }
     }
 
@@ -282,7 +289,7 @@ internal class Copier(
             binInDrive(run, src)
         } else {
             val uri = checkNotNull(src.uri)
-            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.trash(uri) }
+            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.setTrashed(uri, trashed = true) }
         }
     }
 
@@ -311,7 +318,8 @@ internal class Copier(
             id = id,
             name = name,
             parents = listOf(checkNotNull(dst.folderId)),
-            modifiedTime = meta.modifiedAt?.let { Instant.ofEpochMilli(it).toString() }
+            modifiedTime = meta.modifiedAt?.let { Instant.ofEpochMilli(it).toString() },
+            appProperties = meta.takenAt?.let { mapOf(TAKEN_AT_PROPERTY to it.toString()) }
         )
         val (session, status) = session(run, account, metadata, meta.mime, size)
         run.bytesTotal = size
@@ -397,7 +405,7 @@ internal class Copier(
      * A phone item or a Drive file written into folder [dst] of the phone through MediaStore: a
      * pending item that only PhotoXT sees until its bytes, read back, match the source's.
      */
-    private suspend fun writeToPhone(
+    suspend fun writeToPhone(
         run: JobRun,
         dst: Destination,
         name: String,
@@ -467,7 +475,7 @@ internal class Copier(
      * the phone downloads into a file first, so a killed download resumes with a Range request;
      * one going to another account streams into the upload, which resumes at Drive's offset.
      */
-    private suspend fun inputOf(run: JobRun, toPhone: Boolean): Input {
+    suspend fun inputOf(run: JobRun, toPhone: Boolean): Input {
         val src = run.src
         // A Drive original PhotoXT already has needs no download.
         val cached = src.mediaId?.takeIf { src.isDrive }?.let { drive.cachedOriginal(it) }
@@ -507,7 +515,7 @@ internal class Copier(
     )
 
     /** Downloads a Drive source into the work folder, resuming a partial one, then checks it. */
-    private suspend fun downloaded(run: JobRun): File {
+    suspend fun downloaded(run: JobRun): File {
         val src = run.src
         val part = partFile(run)
         part.parentFile?.mkdirs()

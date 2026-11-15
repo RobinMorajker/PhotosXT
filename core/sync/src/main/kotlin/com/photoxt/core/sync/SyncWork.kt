@@ -22,11 +22,14 @@ import dagger.hilt.components.SingletonComponent
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
- * PhotoXT's background work (spec §5.3) through WorkManager: Drive sync every 6 hours on a network
- * with the battery not low (spec §4.3), the cache cleanup once a day (spec §4.4), and fetching
- * offline pins whenever pins change. Each job is idempotent; WorkManager retries and resumes them.
+ * PhotoXT's background work (spec §5.3) through WorkManager: Drive sync every few hours (6 unless
+ * the settings say otherwise, spec §4.21) on a network, or only Wi-Fi, with the battery not low
+ * (spec §4.3), the cache cleanup once a day (spec §4.4), and fetching offline pins whenever pins
+ * change. Each job is idempotent; WorkManager retries and resumes them.
  */
 @Singleton
 class SyncWork @Inject constructor(
@@ -35,20 +38,11 @@ class SyncWork @Inject constructor(
 ) {
     private val manager: WorkManager get() = WorkManager.getInstance(context)
 
-    /** Call once, from `Application.onCreate` (through [DriveSync.start]). */
-    fun schedule() {
-        manager.enqueueUniquePeriodicWork(
-            SYNC,
-            ExistingPeriodicWorkPolicy.KEEP,
-            PeriodicWorkRequestBuilder<DriveSyncWorker>(SYNC_HOURS, TimeUnit.HOURS)
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiredNetworkType(NetworkType.CONNECTED)
-                        .setRequiresBatteryNotLow(true)
-                        .build()
-                )
-                .build()
-        )
+    /**
+     * Call once, from `Application.onCreate` (through [DriveSync.start]); it runs as long as the
+     * app does, so the Drive sync follows its settings as they change.
+     */
+    suspend fun schedule() {
         manager.enqueueUniquePeriodicWork(
             CACHE,
             ExistingPeriodicWorkPolicy.KEEP,
@@ -56,6 +50,25 @@ class SyncWork @Inject constructor(
                 .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
                 .build()
         )
+        settings.settings.map { it.sync.driveHours to it.sync.driveOnMobile }
+            .distinctUntilChanged()
+            .collect { (hours, onMobile) ->
+                manager.enqueueUniquePeriodicWork(
+                    SYNC,
+                    // A new interval or network rule applies from the next run on.
+                    ExistingPeriodicWorkPolicy.UPDATE,
+                    PeriodicWorkRequestBuilder<DriveSyncWorker>(hours.toLong(), TimeUnit.HOURS)
+                        .setConstraints(
+                            Constraints.Builder()
+                                .setRequiredNetworkType(
+                                    if (onMobile) NetworkType.CONNECTED else NetworkType.UNMETERED
+                                )
+                                .setRequiresBatteryNotLow(true)
+                                .build()
+                        )
+                        .build()
+                )
+            }
     }
 
     /**
@@ -84,11 +97,10 @@ class SyncWork @Inject constructor(
         const val SYNC = "drive-sync"
         const val CACHE = "drive-cache-cleanup"
         const val OFFLINE = "drive-offline-pins"
-        const val SYNC_HOURS = 6L
     }
 }
 
-/** Every 6 hours: each account's Drive changes. A failure waits for the next trigger. */
+/** Every few hours: each account's Drive changes. A failure waits for the next trigger. */
 class DriveSyncWorker(context: Context, params: WorkerParameters) :
     CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {

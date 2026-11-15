@@ -85,7 +85,7 @@ internal fun describeMedia(context: Context, item: GridCell.Item): String {
 }
 
 /** A video's length as a tile badge shows it: "0:42", "12:05", "1:02:03". */
-internal fun formatDuration(durationMs: Long?): String {
+fun formatDuration(durationMs: Long?): String {
     val total = (durationMs ?: 0L) / MILLIS_PER_SECOND
     val hours = total / SECONDS_PER_HOUR
     val minutes = total / SECONDS_PER_MINUTE % SECONDS_PER_MINUTE

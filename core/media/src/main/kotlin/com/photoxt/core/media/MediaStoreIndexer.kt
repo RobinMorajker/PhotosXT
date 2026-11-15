@@ -8,6 +8,7 @@ import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.DateGrouping
 import com.photoxt.core.model.SourceType
+import com.photoxt.core.model.naturalKey
 import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
@@ -127,6 +128,9 @@ private fun DeviceMedia.toEntity(zone: ZoneId): MediaEntity {
     // Files without a capture date fall back to their modification, then their addition time.
     val takenAt = dateTakenMs?.takeIf { it > 0 }
         ?: (dateModifiedSec.takeIf { it > 0 } ?: dateAddedSec) * MILLIS_PER_SECOND
+    val modifiedAt = dateModifiedSec * MILLIS_PER_SECOND
+    // Date added (spec §4.2): when the file reached the phone, whenever it was taken.
+    val addedAt = dateAddedSec.takeIf { it > 0 }?.times(MILLIS_PER_SECOND) ?: takenAt
     return MediaEntity(
         id = deviceMediaId(id),
         source = SourceType.DEVICE,
@@ -142,10 +146,16 @@ private fun DeviceMedia.toEntity(zone: ZoneId): MediaEntity {
         rotation = orientation,
         durationMs = durationMs,
         takenAt = takenAt,
-        modifiedAt = dateModifiedSec * MILLIS_PER_SECOND,
+        modifiedAt = modifiedAt,
         dayKey = DateGrouping.DAY.keyOf(takenAt, zone),
         monthKey = DateGrouping.MONTH.keyOf(takenAt, zone),
-        favorite = favorite
+        favorite = favorite,
+        addedAt = addedAt,
+        addedDayKey = DateGrouping.DAY.keyOf(addedAt, zone),
+        addedMonthKey = DateGrouping.MONTH.keyOf(addedAt, zone),
+        modifiedDayKey = DateGrouping.DAY.keyOf(modifiedAt, zone),
+        modifiedMonthKey = DateGrouping.MONTH.keyOf(modifiedAt, zone),
+        nameKey = naturalKey(name)
     )
 }
 

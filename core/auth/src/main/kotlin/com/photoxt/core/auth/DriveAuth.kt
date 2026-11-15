@@ -138,11 +138,24 @@ class DriveAuth @Inject constructor(
     override suspend fun token(accountId: String): String {
         fresh(accountId)?.let { return it }
         return locks.getOrPut(accountId) { Mutex() }.withLock {
-            fresh(accountId) ?: when (val result = authorize(accountId, DriveScope.READONLY)) {
-                is Authorization.Granted -> result.token
-                is Authorization.NeedsConsent -> throw ConsentRequiredException(accountId)
-            }
+            fresh(accountId)
+                ?: when (val result = authorize(accountId, backgroundScope(accountId))) {
+                    is Authorization.Granted -> result.token
+                    is Authorization.NeedsConsent -> throw ConsentRequiredException(accountId)
+                }
         }
+    }
+
+    /**
+     * The scope a background token asks for: Drive itself, or app data only for an account that
+     * granted nothing else yet (settings sync before any Drive folder). Every token carries all
+     * the scopes granted, so this only decides which grant must exist.
+     */
+    private suspend fun backgroundScope(accountId: String): DriveScope {
+        val granted = dao.account(accountId)?.scopes.orEmpty()
+        val appDataOnly = !DriveScope.READONLY.grantedIn(granted) &&
+            DriveScope.APP_DATA.grantedIn(granted)
+        return if (appDataOnly) DriveScope.APP_DATA else DriveScope.READONLY
     }
 
     private fun fresh(accountId: String): String? = tokens[accountId]

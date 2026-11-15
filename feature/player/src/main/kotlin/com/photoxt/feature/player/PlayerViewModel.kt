@@ -3,6 +3,7 @@
 package com.photoxt.feature.player
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
@@ -17,40 +18,54 @@ import com.photoxt.core.database.MediaDao
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.media.DriveOriginals
 import com.photoxt.core.media.DriveVideo
-import com.photoxt.core.media.PlaybackPositions
 import com.photoxt.core.media.SubtitleFile
 import com.photoxt.core.media.SubtitleFinder
 import com.photoxt.core.model.SourceType
+import com.photoxt.core.model.TargetType
+import com.photoxt.core.organize.Bookmarks
+import com.photoxt.core.organize.History
+import com.photoxt.core.ui.NamedChoice
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
  * One video in the player (spec §4.6). The player lives here, so it keeps playing through
  * rotation and picture-in-picture. Where playback stopped is saved on every pause, every few
- * seconds while playing, and on leaving; the next open resumes there.
+ * seconds while playing, and on leaving; the next open resumes there. Opened from album
+ * [albumId], the view and the time watched go to the history (spec §4.9); [startAt] opens a
+ * bookmarked moment (spec §4.8).
  */
 @HiltViewModel(assistedFactory = PlayerViewModel.Factory::class)
 class PlayerViewModel @AssistedInject constructor(
-    @Assisted private val mediaId: String,
+    @Assisted("media") private val mediaId: String,
+    @Assisted("album") private val albumId: String?,
+    @Assisted private val startAt: Long?,
     @ApplicationContext context: Context,
     private val mediaDao: MediaDao,
-    private val positions: PlaybackPositions,
+    private val history: History,
+    private val bookmarks: Bookmarks,
     private val subtitleFinder: SubtitleFinder,
     private val driveVideo: DriveVideo,
     private val originals: DriveOriginals
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
-        fun create(mediaId: String): PlayerViewModel
+        fun create(
+            @Assisted("media") mediaId: String,
+            @Assisted("album") albumId: String?,
+            startAt: Long?
+        ): PlayerViewModel
     }
 
     val player: ExoPlayer = ExoPlayer.Builder(context)
@@ -68,14 +83,26 @@ class PlayerViewModel @AssistedInject constructor(
     private val subtitleFiles = MutableStateFlow<List<SubtitleFile>>(emptyList())
     val subtitles: StateFlow<List<SubtitleFile>> = subtitleFiles.asStateFlow()
 
+    val collections: Flow<List<NamedChoice>> =
+        bookmarks.collections.map { list -> list.map { NamedChoice(it.id, it.name) } }
+
+    /** This open's history entry, once logged; null while history is paused (spec §4.9). */
+    private var viewId: Long? = null
+    private var playingSince: Long? = null
+
     init {
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                if (!isPlaying) savePosition()
+                if (isPlaying) {
+                    playingSince = SystemClock.elapsedRealtime()
+                } else {
+                    logWatched()
+                    savePosition()
+                }
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == Player.STATE_ENDED) positions.clear(mediaId)
+                if (playbackState == Player.STATE_ENDED) history.finished(mediaId)
             }
         })
         viewModelScope.launch { load() }
@@ -105,7 +132,8 @@ class PlayerViewModel @AssistedInject constructor(
             .setCustomCacheKey(drive?.let { driveVideo.cacheKey(it.fileId, it.version) })
             .setSubtitleConfigurations(found.mapIndexed(::subtitleConfiguration))
             .build()
-        val resumeAt = positions.resumeAt(mediaId)
+        viewId = history.viewed(mediaId, albumId)
+        val resumeAt = startAt ?: history.resumeAt(mediaId)
         if (drive != null) {
             // Streamed from Drive with Range requests through the video cache (spec §4.4).
             val source = DefaultMediaSourceFactory(driveVideo.dataSourceFactory(drive.accountId))
@@ -114,7 +142,8 @@ class PlayerViewModel @AssistedInject constructor(
         } else {
             player.setMediaItem(mediaItem, resumeAt ?: 0L)
         }
-        resumed.value = resumeAt
+        // A bookmarked moment is where the user asked to start, not a resume to undo.
+        resumed.value = resumeAt.takeIf { startAt == null }
         player.prepare()
         player.playWhenReady = true
     }
@@ -141,10 +170,31 @@ class PlayerViewModel @AssistedInject constructor(
     fun savePosition() {
         if (loaded.value == null || player.playbackState == Player.STATE_ENDED) return
         val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
-        positions.save(mediaId, player.currentPosition, duration)
+        history.savePosition(mediaId, player.currentPosition, duration)
+    }
+
+    /** Bookmarks this video at [positionMs] (spec §4.8). */
+    fun bookmarkMoment(
+        positionMs: Long,
+        collectionId: String?,
+        newCollection: String?,
+        note: String
+    ) {
+        if (loaded.value == null) return
+        viewModelScope.launch {
+            val collection = bookmarks.collection(collectionId, newCollection)
+            bookmarks.add(collection, TargetType.ITEM, mediaId, note, positionMs)
+        }
+    }
+
+    private fun logWatched() {
+        val since = playingSince ?: return
+        playingSince = null
+        viewId?.let { history.watched(it, SystemClock.elapsedRealtime() - since) }
     }
 
     override fun onCleared() {
+        logWatched()
         savePosition()
         player.release()
     }

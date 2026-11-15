@@ -14,6 +14,7 @@ import com.photoxt.core.model.TrackedFolderState
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.TransferState
 import com.photoxt.core.model.WaitFor
+import kotlinx.serialization.Serializable
 
 /**
  * An album (spec §5.4). A device folder's [id] is `device:<bucket id>`; a Drive folder's is
@@ -21,6 +22,7 @@ import com.photoxt.core.model.WaitFor
  * folder (`DriveDao.removeTracked`), not through a foreign key: adding one to this table would
  * make Room rebuild it, and its items with it, on upgrade.
  */
+@Serializable
 @Entity(tableName = "album", indices = [Index("parentId"), Index("rootId")])
 data class AlbumEntity(
     @PrimaryKey val id: String,
@@ -41,7 +43,15 @@ data class AlbumEntity(
      * A phone album made in PhotoXT that holds nothing yet. Its id is the MediaStore bucket id
      * its first item will have, so the album stays the same one once filled.
      */
-    @ColumnInfo(defaultValue = "0") val pending: Boolean = false
+    @ColumnInfo(defaultValue = "0") val pending: Boolean = false,
+    /**
+     * When it was made (spec §4.2, Date created): a Drive folder's `createdTime`, or when a
+     * virtual or smart album was made. Null for a phone folder: MediaStore keeps no folder
+     * dates, so it counts from its earliest Date added.
+     */
+    val createdAt: Long? = null,
+    /** A smart album's [com.photoxt.core.model.SmartRule], as JSON. */
+    val rule: String? = null
 )
 
 /**
@@ -140,7 +150,13 @@ data class DriveFolderEntity(
     indices = [
         Index("albumId", "takenAt"),
         Index("dayKey", "takenAt"),
-        Index("monthKey", "takenAt")
+        Index("monthKey", "takenAt"),
+        // Each item sort key with its album (spec §5.4); ties break by takenAt, then id.
+        Index("albumId", "addedAt"),
+        Index("albumId", "modifiedAt"),
+        Index("albumId", "nameKey"),
+        Index("albumId", "bytes"),
+        Index("addedDayKey", "addedAt")
     ]
 )
 data class MediaEntity(
@@ -175,7 +191,18 @@ data class MediaEntity(
     val thumbnailLink: String? = null,
     val lat: Double? = null,
     val lng: Double? = null,
-    val camera: String? = null
+    val camera: String? = null,
+    /**
+     * When the file reached the phone (MediaStore `DATE_ADDED`) or Drive (`createdTime`), for
+     * Date added (spec §4.2), independent of when it was taken. Its day and month keys group it.
+     */
+    @ColumnInfo(defaultValue = "0") val addedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val addedDayKey: Int = 0,
+    @ColumnInfo(defaultValue = "0") val addedMonthKey: Int = 0,
+    @ColumnInfo(defaultValue = "0") val modifiedDayKey: Int = 0,
+    @ColumnInfo(defaultValue = "0") val modifiedMonthKey: Int = 0,
+    /** [name] as a natural-order key ([com.photoxt.core.model.naturalKey]), for Name. */
+    @ColumnInfo(defaultValue = "''") val nameKey: String = ""
 )
 
 /**
@@ -278,20 +305,12 @@ data class MediaStoreCursorEntity(
 )
 
 /**
- * Where playback of a video stopped (spec §4.6, continuity), so it resumes there. It goes with its
- * item: removing the item removes it. Phase 6 folds it into the viewing history.
+ * Where playback of a video stopped (spec §4.6, continuity; §4.9, video progress), so it resumes
+ * there and *Continue watching* lists it. No foreign key: settings sync restores it before the
+ * item's album is scanned again, and a gone item's row just stays unseen.
  */
-@Entity(
-    tableName = "playback_position",
-    foreignKeys = [
-        ForeignKey(
-            entity = MediaEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["mediaId"],
-            onDelete = ForeignKey.CASCADE
-        )
-    ]
-)
+@Serializable
+@Entity(tableName = "playback_position", indices = [Index("updatedAt")])
 data class PlaybackPositionEntity(
     @PrimaryKey val mediaId: String,
     val positionMs: Long,
@@ -414,7 +433,11 @@ data class TimelineRow(
     val height: Int,
     val rotation: Int,
     val source: SourceType?,
-    val remoteVersion: Long?
+    val remoteVersion: Long?,
+    val name: String?,
+    val bytes: Long,
+    /** The time the grid groups this item by ([PINNED_TIME] for a pinned item). */
+    val groupTime: Long
 )
 
 /** One photo or video as the viewer shows it, in the order of the grid it was opened from. */
@@ -445,7 +468,7 @@ data class ViewerItem(
 /** How many items one date group holds. */
 data class GroupCount(val groupKey: Int, val count: Int)
 
-/** An item's id and capture time, for selections. */
+/** An item's id and the time its grid groups it by, for selections. */
 data class MediaStamp(val id: String, val takenAt: Long)
 
 /** What sharing needs to hand an item to another app. */
@@ -467,7 +490,10 @@ data class AlbumSummary(
     val coverModifiedAt: Long,
     val coverVersion: Long?,
     val accountId: String?,
-    val state: TrackedFolderState?
+    val state: TrackedFolderState?,
+    /** Its Date created (spec §4.2): the album's own, or its earliest Date added. */
+    val createdAt: Long = 0,
+    val totalBytes: Long = 0
 )
 
 /** A Drive item as sync sees it: where it is placed and which content it has. */

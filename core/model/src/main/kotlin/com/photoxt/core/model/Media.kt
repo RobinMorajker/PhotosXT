@@ -12,8 +12,11 @@ enum class SourceType { DEVICE, DRIVE }
 
 enum class MediaKind { IMAGE, VIDEO }
 
-/** Album types (spec §3). Virtual and smart albums arrive in later phases. */
-enum class AlbumType { DEVICE_FOLDER, DRIVE_FOLDER }
+/**
+ * Album types (spec §3). A [VIRTUAL] album holds hand-picked items from anywhere, nothing moved;
+ * a [SMART] album is a saved rule ([SmartRule]). Both are PhotoXT's own: sync never writes them.
+ */
+enum class AlbumType { DEVICE_FOLDER, DRIVE_FOLDER, VIRTUAL, SMART }
 
 /**
  * Where a cached Drive original stands (spec §3): only its thumbnail is on the phone, the full
@@ -92,7 +95,11 @@ data class ViewerStart(
     val albumId: String?,
     val filter: MediaFilter,
     val index: Int,
-    val id: String
+    val id: String,
+    /** The grid's order (spec §4.2, Sorting), so the viewer pages in the same order. */
+    val sort: ItemSort = ItemSort(),
+    /** A Library list (Favorites, Videos…) instead of an album, or the Hidden list. */
+    val list: MediaList? = null
 )
 
 /**
@@ -110,7 +117,17 @@ enum class TransferOp {
     MKDIR,
 
     /** A Drive file the user can't bin leaves the folder instead (spec §4.7, Trash). */
-    REMOVE_FROM_ALBUM
+    REMOVE_FROM_ALBUM,
+
+    /** Favorites (spec §4.8): MediaStore's favorite flag, or Drive's star. */
+    FAVORITE,
+    UNFAVORITE,
+
+    /** Into the vault (spec §4.8): encrypted, verified, then the original deleted. */
+    VAULT,
+
+    /** Out of the vault, back to the phone. */
+    UNVAULT
 }
 
 /**
@@ -136,7 +153,11 @@ enum class WaitFor {
     /** MediaStore's own confirmation to move items to or from its trash, or delete them. */
     DEVICE_TRASH,
     DEVICE_RESTORE,
-    DEVICE_DELETE
+    DEVICE_DELETE,
+
+    /** MediaStore's own confirmation to add items to favorites, or take them out. */
+    DEVICE_FAVORITE,
+    DEVICE_UNFAVORITE
 }
 
 /** What happens when an item of the same name is already in the target (spec §4.7). */

@@ -13,6 +13,7 @@ android {
 
 dependencies {
     api(project(":core:sync"))
+    api(project(":core:vault"))
     implementation(project(":core:common"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.exifinterface)
@@ -26,4 +27,5 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.robolectric)
+    testImplementation(libs.tink.android)
 }

@@ -97,9 +97,9 @@ class DriveFiles @Inject constructor(
         )
     }
 
-    /** Bins [fileId], or takes it back out of the bin. */
-    suspend fun setTrashed(account: String, fileId: String, trashed: Boolean): DriveFile =
-        api.update(DriveAccount(account), fileId, DriveFileWrite(trashed = trashed))
+    /** Changes [fileId]'s metadata: binned or back (spec §4.7), starred or not (spec §4.8). */
+    suspend fun update(account: String, fileId: String, change: DriveFileWrite): DriveFile =
+        api.update(DriveAccount(account), fileId, change)
 
     /** Takes [fileId] out of folder [folderId] without binning it (spec §4.7, not owned). */
     suspend fun removeFrom(account: String, fileId: String, folderId: String) =

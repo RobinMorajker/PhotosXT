@@ -4,11 +4,14 @@ import com.photoxt.core.auth.ConsentRequiredException
 import com.photoxt.core.common.PxtLog
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.database.TransferJobEntity
+import com.photoxt.core.drive.DriveFileWrite
 import com.photoxt.core.drive.FOLDER_MIME
 import com.photoxt.core.drive.driveStatus
+import com.photoxt.core.media.ThumbnailStore
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.TransferState
 import com.photoxt.core.model.WaitFor
+import com.photoxt.core.vault.Vault
 import java.io.IOException
 import java.time.Clock
 import javax.inject.Inject
@@ -36,14 +39,17 @@ import kotlinx.coroutines.withContext
  */
 @Singleton
 class TransferEngine @Inject constructor(
-    database: PxtDatabase,
+    private val database: PxtDatabase,
     private val device: DeviceStore,
     private val drive: DriveFiles,
     private val env: TransferEnvironment,
-    private val clock: Clock
+    private val clock: Clock,
+    vault: Vault,
+    thumbnails: ThumbnailStore
 ) {
     private val dao = database.transferDao()
     private val copier = Copier(device, drive, env)
+    private val vaultMoves = VaultMoves(database, copier, vault, thumbnails, clock)
     private val mutex = Mutex()
     private val finishedBatches = MutableSharedFlow<Long>(extraBufferCapacity = EVENTS)
 
@@ -125,6 +131,28 @@ class TransferEngine @Inject constructor(
         TransferOp.MKDIR -> mkdir(run)
 
         TransferOp.REMOVE_FROM_ALBUM -> removeFromAlbum(run)
+
+        TransferOp.FAVORITE, TransferOp.UNFAVORITE -> favorite(
+            run,
+            run.job.op == TransferOp.FAVORITE
+        )
+
+        TransferOp.VAULT, TransferOp.UNVAULT -> vaultMoves.move(run)
+    }
+
+    /** Favorites sync both ways (spec §4.8): MediaStore's flag, or Drive's star. */
+    private suspend fun favorite(run: JobRun, favorite: Boolean): Outcome {
+        val src = run.src
+        if (src.isDrive) {
+            val account = checkNotNull(src.account)
+            env.requireDriveWrite(account)
+            drive.update(account, checkNotNull(src.fileId), DriveFileWrite(starred = favorite))
+        } else {
+            val uri = checkNotNull(src.uri)
+            val kind = if (favorite) WaitFor.DEVICE_FAVORITE else WaitFor.DEVICE_UNFAVORITE
+            run.deviceWrite(kind, uri) { device.setFavorite(uri, favorite) }
+        }
+        return Outcome.Done(src)
     }
 
     // --- Trash, restore, delete, folders -------------------------------------------------------
@@ -136,7 +164,7 @@ class TransferEngine @Inject constructor(
             copier.binInDrive(run, src)
         } else {
             val uri = checkNotNull(src.uri)
-            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.trash(uri) }
+            run.deviceWrite(WaitFor.DEVICE_TRASH, uri) { device.setTrashed(uri, trashed = true) }
         }
         return Outcome.Done(src)
     }
@@ -146,10 +174,10 @@ class TransferEngine @Inject constructor(
         if (src.isDrive) {
             val account = checkNotNull(src.account)
             env.requireDriveWrite(account)
-            drive.setTrashed(account, checkNotNull(src.fileId), trashed = false)
+            drive.update(account, checkNotNull(src.fileId), DriveFileWrite(trashed = false))
         } else {
             val uri = checkNotNull(src.uri)
-            run.deviceWrite(WaitFor.DEVICE_RESTORE, uri) { device.restore(uri) }
+            run.deviceWrite(WaitFor.DEVICE_RESTORE, uri) { device.setTrashed(uri, trashed = false) }
         }
         return Outcome.Done(src)
     }
@@ -252,6 +280,7 @@ class TransferEngine @Inject constructor(
         }
         if (end.state == TransferState.FAILED || end.state == TransferState.CANCELLED) {
             copier.discardPartial(run)
+            unfavorited(job)
         }
         dao.settle(
             job.id,
@@ -263,6 +292,19 @@ class TransferEngine @Inject constructor(
             end.next,
             now
         )
+    }
+
+    /**
+     * A favorite that couldn't be set takes back what the screens showed at once (spec §4.8):
+     * PhotoXT sets the flag when the user taps, before MediaStore or Drive has it.
+     */
+    internal suspend fun unfavorited(job: TransferJobEntity) {
+        val wanted = when (job.op) {
+            TransferOp.FAVORITE -> true
+            TransferOp.UNFAVORITE -> false
+            else -> return
+        }
+        job.source.mediaId?.let { database.mediaDao().setFavorite(listOf(it), !wanted) }
     }
 
     /** Another attempt after 5 s, doubling up to 15 min; the sixth failed attempt is the last. */

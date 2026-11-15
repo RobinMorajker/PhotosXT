@@ -7,6 +7,9 @@ import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.Serializer
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStoreFile
+import com.photoxt.core.model.AlbumSort
+import com.photoxt.core.model.DisplayMode
+import com.photoxt.core.model.ItemSort
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,9 +24,91 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
-/** PhotoXT's settings (spec §4.21). Later phases add their groups here. */
+/**
+ * PhotoXT's settings (spec §4.21). Later phases add their groups here. Everything but [device]
+ * goes to the user's Drive with settings sync (spec §4.8) and comes back after a reinstall.
+ */
 @Serializable
-data class PxtSettings(val storage: StorageSettings = StorageSettings())
+data class PxtSettings(
+    val storage: StorageSettings = StorageSettings(),
+    val sort: SortSettings = SortSettings(),
+    val history: HistorySettings = HistorySettings(),
+    val sync: SyncSettings = SyncSettings(),
+    val view: ViewSettings = ViewSettings(),
+    val organize: OrganizeSettings = OrganizeSettings(),
+    /** This phone's own state: never synced. */
+    val device: DeviceState = DeviceState()
+)
+
+/**
+ * Sort choices (spec §4.2, Scope): the Albums tab and Pictures keep one each; [albumDefault] is
+ * every album's that has none of its own (*Apply to all albums* sets it); Library lists each keep
+ * their own, by [com.photoxt.core.model.MediaList] name.
+ */
+@Serializable
+data class SortSettings(
+    val albums: AlbumSort = AlbumSort(),
+    val pictures: ItemSort = ItemSort(),
+    val albumDefault: ItemSort = ItemSort(),
+    val lists: Map<String, ItemSort> = emptyMap()
+)
+
+/** The viewing history (spec §4.9). */
+@Serializable
+data class HistorySettings(
+    /** Incognito: nothing is logged, video positions included, while on. */
+    val paused: Boolean = false,
+    /** Views older than this go; 0 keeps them for good. */
+    val keepMonths: Int = 12
+) {
+    companion object {
+        val KEEP_MONTHS = listOf(3, 12, 0)
+    }
+}
+
+/**
+ * Settings sync (spec §4.8) and Drive sync (spec §4.21): [accountId] keeps the copy in its Drive
+ * app-data folder (the first account added when null).
+ */
+@Serializable
+data class SyncSettings(
+    val enabled: Boolean = true,
+    val accountId: String? = null,
+    /** How often Drive albums sync in the background. */
+    val driveHours: Int = 6,
+    /** Background Drive sync also on mobile data. */
+    val driveOnMobile: Boolean = true
+) {
+    companion object {
+        val DRIVE_HOURS = listOf(1, 3, 6, 12, 24)
+    }
+}
+
+/** How grids and the viewer were left (spec §4.2, §4.5), by the names of their choices. */
+@Serializable
+data class ViewSettings(
+    val picturesDensity: String? = null,
+    val albumDensity: String? = null,
+    val displayMode: DisplayMode = DisplayMode.FIT,
+    val zoomLock: Boolean = false,
+    val slideshowSeconds: Int = 3,
+    val slideshowTransition: String? = null,
+    val slideshowShuffle: Boolean = false,
+    val slideshowLoop: Boolean = true
+)
+
+/** Organising (spec §4.8): albums that were pinned once on their own, so an unpin sticks. */
+@Serializable
+data class OrganizeSettings(val autoPinned: Set<String> = emptySet())
+
+/** This phone's own state, never synced: when settings sync last ran and what it sent. */
+@Serializable
+data class DeviceState(
+    val syncedAt: Long? = null,
+    val syncedHash: String? = null,
+    /** A reinstall restored from Drive already, or there was nothing to restore. */
+    val restoreChecked: Boolean = false
+)
 
 /** When Drive originals load over mobile data (spec §4.4, data saver). */
 enum class MobileOriginals {
@@ -82,6 +167,38 @@ class SettingsStore(private val store: DataStore<PxtSettings>) {
 
     suspend fun updateStorage(transform: (StorageSettings) -> StorageSettings) =
         update { it.copy(storage = transform(it.storage)) }
+
+    suspend fun updateSort(transform: (SortSettings) -> SortSettings) =
+        update { it.copy(sort = transform(it.sort)) }
+
+    suspend fun updateHistory(transform: (HistorySettings) -> HistorySettings) =
+        update { it.copy(history = transform(it.history)) }
+
+    suspend fun updateSync(transform: (SyncSettings) -> SyncSettings) =
+        update { it.copy(sync = transform(it.sync)) }
+
+    suspend fun updateView(transform: (ViewSettings) -> ViewSettings) =
+        update { it.copy(view = transform(it.view)) }
+
+    suspend fun updateDevice(transform: (DeviceState) -> DeviceState) =
+        update { it.copy(device = transform(it.device)) }
+}
+
+/** Settings as settings sync sends them (spec §4.8): JSON, without this phone's own state. */
+object SettingsJson {
+    val json = Json {
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
+
+    fun encode(settings: PxtSettings): String =
+        json.encodeToString(PxtSettings.serializer(), settings.copy(device = DeviceState()))
+
+    /** [text] as settings, keeping [local]'s own state; null when it can't be read. */
+    fun decode(text: String, local: PxtSettings): PxtSettings? =
+        runCatching { json.decodeFromString(PxtSettings.serializer(), text) }
+            .getOrNull()
+            ?.copy(device = local.device)
 }
 
 /** Settings as JSON. Unknown keys from a newer version are skipped; missing ones keep defaults. */

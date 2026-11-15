@@ -1,6 +1,7 @@
 package com.photoxt.core.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
@@ -48,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedback
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -79,6 +81,8 @@ import androidx.paging.compose.itemKey
 import coil3.compose.AsyncImage
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.model.DateGrouping
+import com.photoxt.core.model.PINNED_KEY
+import com.photoxt.core.model.PINNED_TIME
 import java.time.ZoneId
 import kotlinx.coroutines.flow.collectLatest
 
@@ -101,7 +105,11 @@ sealed interface GridCell {
         val takenAt: Long,
         /** Pixel size as displayed (rotation applied), or 0 when unknown. */
         val width: Int = 0,
-        val height: Int = 0
+        val height: Int = 0,
+        /** The time the grid groups it by: [takenAt], or the sort's own date; pinned items' own. */
+        val groupTime: Long = takenAt,
+        val name: String = "",
+        val bytes: Long = 0
     ) : GridCell {
         override val key: Any get() = id
     }
@@ -137,10 +145,11 @@ enum class GridDensity(val grouping: DateGrouping, val columns: Int) {
  * every date header while selecting.
  *
  * [rows] come from a timeline query (each header followed by its items) and [layout] from the
- * same query's group counts. [selection] maps selected ids to their capture times. Taps open an
+ * same query's group counts. [selection] maps selected ids to their group times. Taps open an
  * item through [onOpen] with its position among items only, or toggle it while selecting. With a
  * [heroSourceKey], the grid tells the viewer where each tile is, so photos fly between them (see
- * [MediaHeroState]).
+ * [MediaHeroState]). With [onReorder] (Custom order's *Edit order*, spec §4.2) a long-press picks
+ * a tile up and a drag puts it before or after the tile it is dropped on, instead of selecting.
  */
 @Composable
 fun MediaGrid(
@@ -156,6 +165,7 @@ fun MediaGrid(
     contentPadding: PaddingValues = PaddingValues(),
     onOpen: ((GridCell.Item, ordinal: Int) -> Unit)? = null,
     heroSourceKey: String? = null,
+    onReorder: ((movedId: String, targetId: String, after: Boolean) -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null
 ) {
     val leadingCount = if (leading != null) 1 else 0
@@ -163,7 +173,8 @@ fun MediaGrid(
     val (tiles, open) = rememberHeroTiles(state, layout, leadingCount, heroSourceKey, onOpen)
     val gestures =
         rememberGridGestures(state, rows, leadingCount, selection, onSelectionChange, open)
-    val labels = rememberDateGroupLabels(density.grouping)
+    SideEffect { gestures.onReorder = onReorder }
+    val labels = rememberGroupLabels(density.grouping)
     val selectedPerGroup = rememberSelectedPerGroup(selection, density.grouping)
     BoxWithConstraints(modifier) {
         // Wider windows keep a phone's tile size by multiplying the columns.
@@ -216,14 +227,24 @@ fun MediaGrid(
     }
 }
 
-/** How many items of each date group are selected, for the groups' select-all marks. */
+/** How many items of each group are selected, for the groups' select-all marks. */
 @Composable
 private fun rememberSelectedPerGroup(
     selection: Map<String, Long>,
     grouping: DateGrouping
 ): Map<Int, Int> = remember(selection, grouping) {
     val zone = ZoneId.systemDefault()
-    selection.values.groupingBy { grouping.keyOf(it, zone) }.eachCount()
+    selection.values.groupingBy {
+        if (it == PINNED_TIME) PINNED_KEY else grouping.keyOf(it, zone)
+    }.eachCount()
+}
+
+/** Date-group labels, and "Pinned" for an album's pinned items (spec §4.8). */
+@Composable
+fun rememberGroupLabels(grouping: DateGrouping): (key: Int) -> String {
+    val dates = rememberDateGroupLabels(grouping)
+    val pinned = stringResource(R.string.group_pinned)
+    return remember(dates, pinned) { { key -> if (key == PINNED_KEY) pinned else dates(key) } }
 }
 
 @Composable
@@ -247,15 +268,22 @@ private fun GridRow(
             onSelectAll = { onSelectGroup(cell.groupKey, it) }
         )
 
-        is GridCell.Item -> MediaTile(
-            item = cell,
-            compact = density.compact,
-            selecting = selection.isNotEmpty(),
-            selected = cell.id in selection,
-            onTap = { gestures.onTap(cell, row) },
-            onSelect = { gestures.onSelectionChange(selection.toggled(cell)) },
-            open = onOpen?.let { { it(cell, row) } }
-        )
+        is GridCell.Item -> Box(
+            Modifier.reorderMark(
+                picked = gestures.picked == cell.id,
+                target = gestures.dropTarget == cell.id
+            )
+        ) {
+            MediaTile(
+                item = cell,
+                compact = density.compact,
+                selecting = selection.isNotEmpty(),
+                selected = cell.id in selection,
+                onTap = { gestures.onTap(cell, row) },
+                onSelect = { gestures.onSelectionChange(selection.toggled(cell)) },
+                open = onOpen?.let { { it(cell, row) } }
+            )
+        }
 
         null -> RowPlaceholder(header = headerRow)
     }
@@ -289,7 +317,9 @@ private fun rememberDensityPinch(
             val (from, fromLayout, lead) = current
             val to = if (spread) from.larger() else from.denser()
             val firstRow = state.firstVisibleItemIndex - lead
-            if (to.grouping != from.grouping && firstRow >= 0 && fromLayout.rowCount > 0) {
+            // A plain grid (Name, Size, Custom order) keeps its rows: only columns change.
+            val regroups = to.grouping != from.grouping && fromLayout.headed
+            if (regroups && firstRow >= 0 && fromLayout.rowCount > 0) {
                 anchor = DensityAnchor(to.grouping, fromLayout.itemOrdinalAt(firstRow))
             }
             if (to != from) change(to)
@@ -363,7 +393,7 @@ private data class DensityRequest(
 )
 
 private fun Map<String, Long>.toggled(item: GridCell.Item): Map<String, Long> =
-    if (item.id in this) this - item.id else this + (item.id to item.takenAt)
+    if (item.id in this) this - item.id else this + (item.id to item.groupTime)
 
 /**
  * [base] with every item between rows [from] and [to] (both included) added, or removed when
@@ -379,10 +409,21 @@ internal fun rangeSelection(
     val result = LinkedHashMap(base)
     for (row in minOf(from, to)..maxOf(from, to)) {
         val item = cellAt(row) as? GridCell.Item ?: continue
-        if (adding) result[item.id] = item.takenAt else result.remove(item.id)
+        if (adding) result[item.id] = item.groupTime else result.remove(item.id)
     }
     return result
 }
+
+/** A tile being dragged fades; the one it would land next to is outlined. */
+@Composable
+private fun Modifier.reorderMark(picked: Boolean, target: Boolean): Modifier {
+    val outline = MaterialTheme.colorScheme.primary
+    return this
+        .graphicsLayer { alpha = if (picked) PICKED_ALPHA else 1f }
+        .then(if (target) Modifier.border(3.dp, outline) else Modifier)
+}
+
+private const val PICKED_ALPHA = 0.4f
 
 /** One pinch changes the density by one level; spreading the fingers makes tiles larger. */
 private fun Modifier.pinchToZoom(onPinch: (spread: Boolean) -> Unit) = pointerInput(onPinch) {
@@ -418,8 +459,19 @@ private class GridGestures(private val state: LazyGridState, private val haptics
     var onSelectionChange: (Map<String, Long>) -> Unit = {}
     var onTap: (GridCell.Item, row: Int) -> Unit = { _, _ -> }
 
+    /** Set while Custom order is being edited: a long-press drags a tile instead. */
+    var onReorder: ((movedId: String, targetId: String, after: Boolean) -> Unit)? = null
+
     var autoScrollSpeed by mutableFloatStateOf(0f)
         private set
+
+    /** The tile being dragged, and the one it would land next to. */
+    var picked by mutableStateOf<String?>(null)
+        private set
+    var dropTarget by mutableStateOf<String?>(null)
+        private set
+    private var pickedRow = -1
+    private var targetRow = -1
 
     private var anchorRow = -1
     private var lastRow = -1
@@ -442,6 +494,8 @@ private class GridGestures(private val state: LazyGridState, private val haptics
                     val item = row?.let { rows?.peek(it) } as? GridCell.Item
                     if (row != null && item != null) onTap(item, row)
                 }
+            } else if (onReorder != null) {
+                reorderDrag(longPress, edge)
             } else if (start(longPress.position)) {
                 val completed = drag(longPress.id) { change ->
                     pointer = change.position
@@ -456,8 +510,42 @@ private class GridGestures(private val state: LazyGridState, private val haptics
         }
     }
 
+    /** Picks up the tile under [down], follows the finger, and drops it where it is let go. */
+    private suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.reorderDrag(
+        down: PointerInputChange,
+        edge: Float
+    ) {
+        val row = rowAt(down.position) ?: return
+        val item = rows?.peek(row) as? GridCell.Item ?: return
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        picked = item.id
+        pickedRow = row
+        pointer = down.position
+        val completed = drag(down.id) { change ->
+            pointer = change.position
+            autoScrollSpeed = edgeSpeed(change.position.y, size.height.toFloat(), edge)
+            aimAt(rowAt(change.position))
+            change.consume()
+        }
+        val target = dropTarget
+        if (completed && target != null && target != item.id) {
+            onReorder?.invoke(item.id, target, targetRow > pickedRow)
+        }
+        picked = null
+        dropTarget = null
+        pickedRow = -1
+        autoScrollSpeed = 0f
+    }
+
+    private fun aimAt(row: Int?) {
+        val item = row?.let { rows?.peek(it) } as? GridCell.Item
+        dropTarget = item?.id
+        targetRow = row ?: -1
+    }
+
     /** A still finger over a scrolling grid moves across items too. */
     fun afterAutoScroll() {
+        if (picked != null) aimAt(rowAt(pointer))
         if (anchorRow >= 0) extendTo(rowAt(pointer))
     }
 

@@ -27,7 +27,8 @@ internal fun chromeActions(
     close: () -> Unit,
     navigation: ViewerNavigation,
     onDetails: (ViewerItem) -> Unit,
-    onMotion: (String) -> Unit
+    onMotion: (String) -> Unit,
+    onDialog: (ViewerDialog, ViewerItem) -> Unit
 ): ChromeActions {
     val start = viewModel.start
     val uri = current?.contentUri
@@ -75,9 +76,24 @@ internal fun chromeActions(
         },
         offline = pinned,
         onOffline = { on -> drive?.let { viewModel.setPinned(it, on) } },
-        onDelete = { current?.let(viewModel.fileOps::delete) }
+        onDelete = { current?.let(viewModel.fileOps::delete) },
+        organize = organizeActions(viewModel.organize, current, onDialog)
     )
 }
+
+private fun organizeActions(
+    organize: ViewerOrganize,
+    current: ViewerItem?,
+    onDialog: (ViewerDialog, ViewerItem) -> Unit
+) = ViewerOrganizeActions(
+    favorite = current?.favorite == true,
+    onFavorite = { on -> current?.let { organize.setFavorite(it, on) } },
+    onBookmark = { current?.let { onDialog(ViewerDialog.BOOKMARK, it) } },
+    onAddToAlbum = { current?.let { onDialog(ViewerDialog.ADD_TO_ALBUM, it) } },
+    onHide = { current?.let(organize::hide) },
+    onVault = { current?.let { onDialog(ViewerDialog.VAULT, it) } },
+    onSetCover = if (organize.canSetCover) ({ current?.let(organize::setAsCover) }) else null
+)
 
 /** What TalkBack says for a page: "Photo, 5 Nov 2026, 10:42". */
 @Composable

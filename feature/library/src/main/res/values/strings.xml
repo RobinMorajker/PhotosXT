@@ -56,6 +56,10 @@
     <string name="transfer_op_convert">Convert %1$s to JPEG</string>
     <string name="transfer_op_mkdir">New folder %1$s</string>
     <string name="transfer_op_remove">Remove %1$s from the album</string>
+    <string name="transfer_op_favorite">Add %1$s to favorites</string>
+    <string name="transfer_op_unfavorite">Remove %1$s from favorites</string>
+    <string name="transfer_op_vault">Move %1$s to the vault</string>
+    <string name="transfer_op_unvault">Move %1$s out of the vault</string>
     <string name="transfer_paused">Paused</string>
     <string name="transfer_waiting">Waiting for your answer</string>
     <string name="transfer_cancelled">Cancelled</string>
@@ -126,4 +130,120 @@
     <string name="storage_mobile_always">Always</string>
     <string name="storage_mobile_wifi">On Wi-Fi only (preview on mobile data)</string>
     <string name="storage_mobile_ask">Ask on mobile data</string>
+    <!-- Library pages (spec §4.1). -->
+    <string name="library_favorites">Favorites</string>
+    <string name="library_favorites_body">Photos and videos you hearted, on the phone and in Drive</string>
+    <string name="library_bookmarks">Bookmarks</string>
+    <string name="library_bookmarks_body">Items, albums and video moments saved in collections</string>
+    <string name="library_history_body">Recently viewed and Continue watching</string>
+    <string name="library_videos">Videos</string>
+    <string name="library_videos_body">Every video, on the phone and in Drive</string>
+    <string name="library_screenshots">Screenshots</string>
+    <string name="library_screenshots_body">Every screenshot</string>
+    <string name="library_hidden_body">Hidden items and albums, behind your screen lock</string>
+    <string name="library_vault_body">Encrypted on this phone, behind your screen lock</string>
+    <string name="library_offline">Offline</string>
+    <string name="library_offline_body">Drive items kept on this phone</string>
+    <string name="library_settings_body">Drive sync, history and settings sync</string>
+
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_create">Create</string>
+    <string name="note_label">Note</string>
+
+    <!-- History (spec §4.9). -->
+    <string name="history_title">History</string>
+    <string name="history_recent">Recently viewed</string>
+    <string name="history_continue">Continue watching</string>
+    <string name="history_empty">Nothing viewed yet.</string>
+    <string name="history_pause">Pause history</string>
+    <string name="history_pause_body">While paused, nothing new is logged, video positions included.</string>
+    <string name="history_keep">Delete history automatically</string>
+    <string name="history_keep_always">Never</string>
+    <plurals name="history_keep_months">
+        <item quantity="one">After %1$d month</item>
+        <item quantity="other">After %1$d months</item>
+    </plurals>
+    <string name="history_clear">Clear history</string>
+    <string name="history_clear_body">Clear everything, or only the days you pick.</string>
+    <string name="history_clear_all">Clear everything</string>
+    <string name="history_clear_range">Pick days</string>
+    <string name="history_clear_all_title">Clear all history?</string>
+    <string name="history_clear_all_body">Recently viewed, Continue watching, view counts and where videos stopped are all deleted. With settings sync on, the copy in your Drive is cleared too.</string>
+    <string name="history_clear_range_confirm">Clear</string>
+    <!-- %1$d is how many views, %2$s when the last was ("5 minutes ago"). -->
+    <plurals name="history_row">
+        <item quantity="one">Viewed %1$,d time · %2$s</item>
+        <item quantity="other">Viewed %1$,d times · %2$s</item>
+    </plurals>
+
+    <!-- Bookmarks (spec §4.8). -->
+    <string name="bookmarks_title">Bookmarks</string>
+    <string name="bookmarks_new_collection">New collection</string>
+    <string name="bookmarks_empty">Nothing bookmarked yet. Bookmark a photo, an album or a moment of a video from its menu.</string>
+    <string name="bookmarks_collection_menu">Options for %1$s</string>
+    <string name="bookmarks_menu">Options for %1$s</string>
+    <string name="bookmarks_rename">Rename</string>
+    <string name="bookmarks_edit_note">Edit note</string>
+    <string name="bookmarks_delete_collection">Delete collection</string>
+    <string name="bookmarks_delete_title">Delete “%1$s”?</string>
+    <string name="bookmarks_delete_body">Its bookmarks go with it. The photos, videos and albums stay where they are.</string>
+    <string name="bookmarks_remove">Remove bookmark</string>
+    <string name="bookmarks_unavailable">No longer available</string>
+    <!-- %1$s is a time in the video, "1:23". -->
+    <string name="bookmarks_moment">At %1$s</string>
+
+    <!-- Hidden (spec §4.8). -->
+    <string name="hidden_title">Hidden</string>
+    <string name="hidden_unlock">Unlock Hidden</string>
+    <string name="hidden_items">Hidden items</string>
+    <plurals name="hidden_items_count">
+        <item quantity="one">%1$,d item</item>
+        <item quantity="other">%1$,d items</item>
+    </plurals>
+    <string name="hidden_albums">Hidden albums</string>
+    <string name="hidden_albums_none">No hidden albums. Hide an album from its menu.</string>
+    <string name="hidden_unhide">Unhide %1$s</string>
+
+    <!-- The vault (spec §4.8). -->
+    <string name="vault_title">Vault</string>
+    <string name="vault_unlock">Unlock the vault</string>
+    <string name="vault_empty_title">The vault is empty</string>
+    <string name="vault_empty_body">Move photos and videos here from their menu. They are encrypted on this phone, and the originals are deleted.</string>
+    <string name="vault_note">Vault items are encrypted and stay on this phone only. Uninstalling PhotoXT or clearing its data deletes them for good.</string>
+    <string name="vault_actions">Vault item options</string>
+    <string name="vault_move_out">Move out of the vault</string>
+    <string name="vault_delete">Delete forever</string>
+    <string name="vault_delete_title">Delete forever?</string>
+    <string name="vault_delete_body">It is deleted from the vault for good. There is no other copy.</string>
+    <plurals name="vault_items">
+        <item quantity="one">%1$,d vault item</item>
+        <item quantity="other">%1$,d vault items</item>
+    </plurals>
+    <string name="vault_play">Play</string>
+    <string name="vault_pause">Pause</string>
+
+    <!-- Settings (spec §4.21) and settings sync (spec §4.8). -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_accounts_storage">Accounts and storage</string>
+    <string name="settings_drive_interval">Sync Drive albums in the background</string>
+    <plurals name="settings_every_hours">
+        <item quantity="one">Every hour</item>
+        <item quantity="other">Every %1$d hours</item>
+    </plurals>
+    <string name="settings_drive_mobile">Background sync on mobile data</string>
+    <string name="settings_drive_mobile_body">Off: Drive albums sync in the background on Wi-Fi only</string>
+    <string name="settings_sync">Settings sync</string>
+    <string name="settings_sync_switch">Keep a copy in Google Drive</string>
+    <string name="settings_sync_body">Albums, sort choices, pins, bookmarks, hidden items, history and settings, in PhotoXT’s own hidden folder in your Drive. A reinstall brings them back.</string>
+    <string name="settings_sync_account">Account</string>
+    <string name="settings_sync_allow">Allow</string>
+    <string name="settings_sync_now">Sync now</string>
+    <string name="settings_sync_no_account">Add a Google account in Albums to keep a copy.</string>
+    <string name="settings_sync_needs_consent">%1$s needs to let PhotoXT use its own folder in Drive.</string>
+    <string name="settings_sync_running">Syncing…</string>
+    <string name="settings_sync_failed">Couldn’t reach Google Drive. PhotoXT tries again when there is a network.</string>
+    <!-- %1$s is an email address, %2$s when ("5 minutes ago"). -->
+    <string name="settings_sync_done">Saved to %1$s, %2$s</string>
+    <string name="settings_sync_waiting">Saves to %1$s</string>
 </resources>

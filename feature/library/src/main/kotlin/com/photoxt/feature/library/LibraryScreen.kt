@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,21 +32,15 @@ import com.photoxt.core.designsystem.PxtTheme
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.transfer.canManageMedia
 import com.photoxt.core.transfer.manageMediaIntent
+import com.photoxt.core.ui.PrivateLock
 
 /**
- * The Library tab (spec §4.1). For now it holds Trash and Transfers (spec §4.7), Storage (spec
- * §4.4) and media management; Favorites, Pinned, Bookmarks, History, Offline, Settings and the
- * rest join with their phases.
+ * The Library tab (spec §4.1): its pages, and media management. Pinned, Recent, Places, People,
+ * Things and Cleanup join with their phases. Showing it locks Hidden and the vault again.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LibraryScreen(
-    title: String,
-    onOpenStorage: () -> Unit,
-    modifier: Modifier = Modifier,
-    onOpenTrash: () -> Unit = {},
-    onOpenTransfers: () -> Unit = {}
-) {
+fun LibraryScreen(title: String, onOpen: (LibraryPage) -> Unit, modifier: Modifier = Modifier) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
         rememberTopAppBarState()
     )
@@ -55,33 +51,13 @@ fun LibraryScreen(
         manageMedia = canManageMedia(context)
         onStopOrDispose { }
     }
+    LaunchedEffect(Unit) { PrivateLock.lock() }
     val manageIntent = remember { manageMediaIntent(context) }
     Column(modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         PxtCollapsingHeader(title = title, scrollBehavior = scrollBehavior)
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            item(key = "trash") {
-                LibraryRow(
-                    R.string.library_trash,
-                    R.string.library_trash_body,
-                    DesignR.drawable.ic_delete,
-                    onOpenTrash
-                )
-            }
-            item(key = "transfers") {
-                LibraryRow(
-                    R.string.library_transfers,
-                    R.string.library_transfers_body,
-                    DesignR.drawable.ic_swap_vert,
-                    onOpenTransfers
-                )
-            }
-            item(key = "storage") {
-                LibraryRow(
-                    R.string.library_storage,
-                    R.string.library_storage_body,
-                    DesignR.drawable.ic_hard_drive,
-                    onOpenStorage
-                )
+            items(LibraryPage.entries, key = { it.name }) { page ->
+                LibraryRow(page.title, page.body, page.icon) { onOpen(page) }
             }
             if (manageIntent != null) {
                 item(key = "manage-media") {
@@ -114,6 +90,6 @@ private fun LibraryRow(title: Int, body: Int, icon: Int, onClick: () -> Unit) {
 @Composable
 private fun LibraryScreenPreview() {
     PxtTheme {
-        Surface { LibraryScreen(title = "Library", onOpenStorage = {}) }
+        Surface { LibraryScreen(title = "Library", onOpen = {}) }
     }
 }

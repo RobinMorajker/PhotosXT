@@ -79,6 +79,32 @@
         <item quantity="one">Removed %1$,d item from its album</item>
         <item quantity="other">Removed %1$,d items from their album</item>
     </plurals>
+    <plurals name="transfer_vaulted">
+        <item quantity="one">Moved %1$,d item to the vault</item>
+        <item quantity="other">Moved %1$,d items to the vault</item>
+    </plurals>
+    <plurals name="transfer_unvaulted">
+        <item quantity="one">Moved %1$,d item out of the vault</item>
+        <item quantity="other">Moved %1$,d items out of the vault</item>
+    </plurals>
     <!-- %1$s is the new folder's name. -->
     <string name="transfer_folder_made">Made the folder %1$s</string>
+    <!-- Library lists (spec §4.1). -->
+    <string name="list_favorites">Favorites</string>
+    <string name="list_videos">Videos</string>
+    <string name="list_screenshots">Screenshots</string>
+    <string name="list_offline">Offline</string>
+    <string name="list_hidden">Hidden items</string>
+    <string name="list_favorites_empty">No favorites yet</string>
+    <string name="list_favorites_empty_body">Tap the heart on a photo or video to find it here.</string>
+    <string name="list_videos_empty">No videos yet</string>
+    <string name="list_videos_empty_body">Videos on this phone and in your Drive albums show here.</string>
+    <string name="list_screenshots_empty">No screenshots</string>
+    <string name="list_screenshots_empty_body">Screenshots on this phone show here.</string>
+    <string name="list_offline_empty">Nothing kept offline</string>
+    <string name="list_offline_empty_body">Keep a Drive album or item offline from its menu to see it here without a network.</string>
+    <string name="list_hidden_empty">Nothing hidden</string>
+    <string name="list_hidden_empty_body">Hide photos and videos from their menu. They stay out of Pictures, albums, search and history.</string>
+    <!-- Settings sync (spec §4.8) brought a reinstall's albums and settings back. -->
+    <string name="settings_restored">Your albums, pins, bookmarks and settings are back from Google Drive</string>
 </resources>

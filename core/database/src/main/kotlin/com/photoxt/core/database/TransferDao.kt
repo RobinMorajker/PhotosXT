@@ -231,6 +231,19 @@ interface TransferDao {
  */
 @Dao
 interface FileOpsDao {
+    @Query("DELETE FROM album_item WHERE mediaId = :mediaId")
+    suspend fun forgetMemberships(mediaId: String)
+
+    @Query("DELETE FROM item_order WHERE mediaId = :mediaId")
+    suspend fun forgetOrder(mediaId: String)
+
+    /** An item leaving for the vault leaves PhotoXT's own albums and Custom order too. */
+    @Transaction
+    suspend fun forgetOwnMemberships(mediaId: String) {
+        forgetMemberships(mediaId)
+        forgetOrder(mediaId)
+    }
+
     @Query("SELECT * FROM album WHERE id = :id")
     suspend fun album(id: String): AlbumEntity?
 

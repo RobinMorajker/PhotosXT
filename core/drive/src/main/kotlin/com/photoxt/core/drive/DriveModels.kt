@@ -27,7 +27,9 @@ data class DriveFile(
     val shortcutDetails: ShortcutDetails? = null,
     /** When the file went to the bin (RFC 3339), for the Trash view. */
     val trashedTime: String? = null,
-    val ownedByMe: Boolean = true
+    val ownedByMe: Boolean = true,
+    /** PhotoXT's own properties, private to it: [TAKEN_AT_PROPERTY] on its uploads. */
+    val appProperties: Map<String, String> = emptyMap()
 ) {
     val isFolder: Boolean get() = mimeType == FOLDER_MIME
     val isShortcut: Boolean get() = mimeType == SHORTCUT_MIME
@@ -47,7 +49,10 @@ data class DriveFileWrite(
     val parents: List<String>? = null,
     val trashed: Boolean? = null,
     /** RFC 3339; kept from the original on uploads, so dates survive the copy. */
-    val modifiedTime: String? = null
+    val modifiedTime: String? = null,
+    /** A favorite (spec §4.8): Drive's star. */
+    val starred: Boolean? = null,
+    val appProperties: Map<String, String>? = null
 )
 
 @Serializable
@@ -110,12 +115,18 @@ data class SharedDriveList(
     val nextPageToken: String? = null
 )
 
+/**
+ * The capture time (epoch ms) PhotoXT gives its uploads (spec §4.2, Dates): Drive keeps none for
+ * videos, which would otherwise be dated by when the copy was made.
+ */
+const val TAKEN_AT_PROPERTY = "pxtTakenAt"
+
 const val FOLDER_MIME = "application/vnd.google-apps.folder"
 const val SHORTCUT_MIME = "application/vnd.google-apps.shortcut"
 
 /** Everything the scan stores per file (spec §4.3), and nothing more. */
 const val FILE_FIELDS = "id,name,mimeType,size,md5Checksum,version,modifiedTime,createdTime," +
-    "parents,starred,trashed,hasThumbnail,thumbnailLink,driveId," +
+    "parents,starred,trashed,hasThumbnail,thumbnailLink,driveId,appProperties," +
     "imageMediaMetadata(width,height,rotation,time,location,cameraMake,cameraModel)," +
     "videoMediaMetadata(width,height,durationMillis),shortcutDetails(targetId,targetMimeType)"
 

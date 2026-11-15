@@ -92,4 +92,47 @@
     <string name="copy_to_clipboard_failed">Couldn\'t copy it.</string>
     <string name="folder_creating">Making %1$s in Google Drive…</string>
     <string name="folder_failed">Couldn\'t make the folder.</string>
+
+    <!-- Organising (spec §4.8). -->
+    <string name="action_favorite">Favorite</string>
+    <string name="action_unfavorite">Remove from favorites</string>
+    <string name="action_add_to_album">Add to album</string>
+    <!-- Short label under the Add to album button of the selection bar. -->
+    <string name="action_add_to_album_short">Album</string>
+    <string name="action_pin_items">Pin to top of album</string>
+    <string name="action_unpin_items">Unpin</string>
+    <string name="action_move_up">Move up</string>
+    <string name="action_move_down">Move down</string>
+    <string name="action_move_to_top">Move to top</string>
+    <string name="action_move_to_bottom">Move to bottom</string>
+    <string name="action_set_cover">Set as album cover</string>
+    <string name="action_reset_cover">Use newest item as cover</string>
+    <string name="action_remove_from_album">Remove from album</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_unhide">Unhide</string>
+    <string name="action_move_to_vault">Move to vault</string>
+    <string name="action_pin_album">Pin album</string>
+    <string name="action_unpin_album">Unpin album</string>
+    <string name="action_add_to_home_screen">Add to home screen</string>
+    <string name="action_bookmark_album">Bookmark album</string>
+    <string name="action_edit_order">Edit order</string>
+    <string name="action_edit_rule">Edit rule</string>
+    <string name="action_delete_album">Delete album</string>
+    <string name="action_hide_from_pictures">Hide from Pictures</string>
+    <string name="action_hide_album">Hide album</string>
+    <string name="action_unhide_album">Unhide album</string>
+    <string name="action_done">Done</string>
+    <string name="action_sort">Sort</string>
+    <string name="editing_order_title">Drag to reorder</string>
+    <string name="new_virtual_album_title">New album</string>
+    <string name="bookmark_default_collection">Bookmarks</string>
+    <string name="shortcut_unsupported">This home screen can\'t add shortcuts.</string>
+    <plurals name="vault_title">
+        <item quantity="one">Move %1$,d item to the vault?</item>
+        <item quantity="other">Move %1$,d items to the vault?</item>
+    </plurals>
+    <string name="vault_body">They are encrypted on this phone, then the originals are deleted from the phone or Google Drive. Vault items stay on this phone only: uninstalling PhotoXT deletes them.</string>
+    <string name="delete_own_album_title">Delete this album?</string>
+    <string name="delete_own_album_body">Only the album goes. Its photos and videos stay where they are.</string>
+    <string name="hidden_album_shown">This album is hidden. It shows only in Hidden.</string>
 </resources>

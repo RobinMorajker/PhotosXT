@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -138,6 +139,12 @@ private fun MediaFacts(details: ViewerDetails, onShowLocation: () -> Unit) {
     }
     details.folder?.let { folder ->
         Fact(DesignR.drawable.ic_open_in_new, readablePath(context, folder, details.item.name))
+    }
+    if (details.views > 0) {
+        Fact(
+            DesignR.drawable.ic_history,
+            pluralStringResource(R.plurals.details_views, details.views, details.views)
+        )
     }
 }
 

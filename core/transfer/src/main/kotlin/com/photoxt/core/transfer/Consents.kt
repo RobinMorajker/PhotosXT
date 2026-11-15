@@ -22,7 +22,8 @@ import kotlinx.coroutines.withContext
 
 /**
  * MediaStore's own request screen for jobs waiting on [kind] about [uris] (spec §4.7): a write
- * grant, or the trash, restore and delete confirmations, which make the change themselves. With
+ * grant, or the trash, restore, delete and favorite confirmations, which make the change
+ * themselves. With
  * media management granted ([canManageMedia]) it answers at once without showing anything.
  */
 fun mediaStoreRequest(context: Context, kind: WaitFor, uris: List<String>): PendingIntent? {
@@ -34,6 +35,8 @@ fun mediaStoreRequest(context: Context, kind: WaitFor, uris: List<String>): Pend
         WaitFor.DEVICE_TRASH -> MediaStore.createTrashRequest(resolver, items, true)
         WaitFor.DEVICE_RESTORE -> MediaStore.createTrashRequest(resolver, items, false)
         WaitFor.DEVICE_DELETE -> MediaStore.createDeleteRequest(resolver, items)
+        WaitFor.DEVICE_FAVORITE -> MediaStore.createFavoriteRequest(resolver, items, true)
+        WaitFor.DEVICE_UNFAVORITE -> MediaStore.createFavoriteRequest(resolver, items, false)
         else -> null
     }
 }

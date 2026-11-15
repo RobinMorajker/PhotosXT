@@ -16,7 +16,7 @@ class MigrationTest {
     val helper = MigrationTestHelper(
         InstrumentationRegistry.getInstrumentation(),
         PxtDatabase::class.java,
-        listOf(Version3To4())
+        listOf(Version3To4(), Version5To6())
     )
 
     @Test
@@ -179,6 +179,50 @@ class MigrationTest {
             db.execSQL("DELETE FROM transfer_batch WHERE id = 1")
             assertEquals(0, db.count("transfer_job"))
             assertEquals(1, db.count("clipboard"))
+        }
+    }
+
+    /**
+     * Version 6 (Phase 6) adds the organising tables and the new sort columns. Rows stay, and
+     * the phone and Drive are indexed again in full, which fills Date added and the name keys.
+     */
+    @Test
+    fun version5To6KeepsRowsAndIndexesAgainForTheNewSortData() {
+        helper.createDatabase(NAME, 5).use { db ->
+            db.execSQL(
+                "INSERT INTO album (id, type, sourceRef, title, pending) VALUES " +
+                    "('device:1', 'DEVICE_FOLDER', 'external_primary:DCIM/Camera/', 'Camera', 0)"
+            )
+            db.execSQL(
+                "INSERT INTO media (id, source, volume, contentUri, albumId, name, mime, kind, " +
+                    "bytes, width, height, rotation, takenAt, modifiedAt, dayKey, monthKey, " +
+                    "favorite) VALUES ('device:7', 'DEVICE', 'external_primary', " +
+                    "'content://media/external/images/media/7', 'device:1', 'IMG_7.jpg', " +
+                    "'image/jpeg', 'IMAGE', 100, 4000, 3000, 0, 5, 6, 0, 0, 1)"
+            )
+            db.execSQL("INSERT INTO media_store_cursor VALUES ('external_primary', 'v', 9, 'UTC')")
+            db.execSQL("INSERT INTO playback_position VALUES ('device:7', 1, 2, 3)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 6, true).use { db ->
+            db.query("SELECT name, favorite, addedAt, nameKey FROM media").use {
+                it.moveToFirst()
+                assertEquals("IMG_7.jpg", it.getString(0))
+                assertEquals(1, it.getInt(1))
+                assertEquals(0L, it.getLong(2))
+                assertEquals("", it.getString(3))
+            }
+            assertEquals(1, db.count("playback_position"))
+            // The next start indexes every volume again from the beginning.
+            assertEquals(0, db.count("media_store_cursor"))
+            db.execSQL("INSERT INTO pin VALUES ('ITEM', 'device:7', 1.0, 1)")
+            db.execSQL("INSERT INTO hidden_item VALUES ('device:7', 1)")
+            db.execSQL(
+                "INSERT INTO history (mediaId, albumId, viewedAt, watchedMs) " +
+                    "VALUES ('device:7', NULL, 1, 0)"
+            )
+            assertEquals(1, db.count("pin"))
+            assertEquals(1, db.count("history"))
         }
     }
 

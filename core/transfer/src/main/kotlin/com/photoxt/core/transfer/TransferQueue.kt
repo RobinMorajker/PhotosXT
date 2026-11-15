@@ -247,6 +247,7 @@ class TransferQueue @Inject constructor(
                     complete(job, copy, KEPT_SOURCE)
                 } else {
                     dao.settleWaiting(listOf(job.id), TransferState.FAILED, NOT_ALLOWED, now)
+                    engine.unfavorited(job)
                 }
             }
 
@@ -360,7 +361,13 @@ class TransferQueue @Inject constructor(
         const val EVENTS = 8
         const val NOT_ALLOWED = "Not allowed"
         const val KEPT_SOURCE = "Copied; the original stays where it was"
-        val SELF_DONE = setOf(TransferOp.TRASH, TransferOp.RESTORE, TransferOp.DELETE)
+        val SELF_DONE = setOf(
+            TransferOp.TRASH,
+            TransferOp.RESTORE,
+            TransferOp.DELETE,
+            TransferOp.FAVORITE,
+            TransferOp.UNFAVORITE
+        )
         val UNDOABLE = setOf(TransferOp.MOVE, TransferOp.TRASH)
     }
 }

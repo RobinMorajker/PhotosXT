@@ -242,7 +242,7 @@ private fun LazyListScope.usageSections(
 }
 
 @Composable
-private fun SectionTitle(text: String) {
+internal fun SectionTitle(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleSmall,
@@ -359,7 +359,7 @@ private fun Settings(
 
 /** A setting showing its value; tapping it lists the [choices]. */
 @Composable
-private fun <T> Choice(
+internal fun <T> Choice(
     label: String,
     value: T,
     choices: List<T>,

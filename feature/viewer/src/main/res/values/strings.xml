@@ -56,4 +56,20 @@
     <string name="details_show_location">Show where this was taken</string>
     <string name="details_open_in_maps">Open in Maps</string>
     <string name="drive_open_failed">Could not open this from Google Drive.</string>
+    <!-- Organising (spec §4.8, §4.9). -->
+    <string name="action_favorite">Favorite</string>
+    <string name="action_unfavorite">Remove from favorites</string>
+    <string name="action_bookmark">Bookmark</string>
+    <string name="action_add_to_album">Add to album</string>
+    <string name="action_set_cover">Set as album cover</string>
+    <string name="action_hide">Hide</string>
+    <string name="action_move_to_vault">Move to vault</string>
+    <string name="action_create">Create</string>
+    <string name="bookmark_default_collection">Bookmarks</string>
+    <string name="vault_one_title">Move this item to the vault?</string>
+    <string name="vault_body">It is encrypted on this phone, then the original is deleted from the phone or Google Drive. Vault items stay on this phone only: uninstalling PhotoXT deletes them.</string>
+    <plurals name="details_views">
+        <item quantity="one">Viewed %1$,d time</item>
+        <item quantity="other">Viewed %1$,d times</item>
+    </plurals>
 </resources>

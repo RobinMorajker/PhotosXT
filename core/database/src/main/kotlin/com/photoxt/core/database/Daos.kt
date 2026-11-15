@@ -13,14 +13,29 @@ import androidx.sqlite.db.SupportSQLiteQuery
 import com.photoxt.core.model.TrackedFolderState
 import kotlinx.coroutines.flow.Flow
 
-/** What screens read about media. Call the raw queries through the [TimelineQuery] extensions. */
+/**
+ * What screens read about media. Call the raw queries through the [TimelineQuery] extensions.
+ * Pins, Custom order, virtual albums, hidden items and album options shape the lists, so they
+ * reload them; offline pins feed the Offline filter. Each changes only when the user acts.
+ */
 @Dao
 interface MediaDao {
-    // Offline pins feed the Offline filter; they change only when the user pins or unpins.
-    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, OfflinePinEntity::class, PinEntity::class,
+            ItemOrderEntity::class, AlbumItemEntity::class, HiddenItemEntity::class,
+            AlbumPrefsEntity::class
+        ]
+    )
     fun timelineRows(query: SupportSQLiteQuery): PagingSource<Int, TimelineRow>
 
-    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, OfflinePinEntity::class, PinEntity::class,
+            ItemOrderEntity::class, AlbumItemEntity::class, HiddenItemEntity::class,
+            AlbumPrefsEntity::class
+        ]
+    )
     fun groupCountRows(query: SupportSQLiteQuery): Flow<List<GroupCount>>
 
     @RawQuery
@@ -30,7 +45,13 @@ interface MediaDao {
     @Query("SELECT contentUri, mime FROM media WHERE id IN (:ids) AND contentUri IS NOT NULL")
     suspend fun shareTargets(ids: List<String>): List<ShareTarget>
 
-    @RawQuery(observedEntities = [MediaEntity::class, OfflinePinEntity::class])
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, OfflinePinEntity::class, PinEntity::class,
+            ItemOrderEntity::class, AlbumItemEntity::class, HiddenItemEntity::class,
+            AlbumPrefsEntity::class
+        ]
+    )
     fun viewerItemRows(query: SupportSQLiteQuery): PagingSource<Int, ViewerItem>
 
     @RawQuery
@@ -39,12 +60,34 @@ interface MediaDao {
     @RawQuery
     suspend fun count(query: SupportSQLiteQuery): Int
 
+    @RawQuery
+    suspend fun intOrNull(query: SupportSQLiteQuery): Int?
+
+    @RawQuery
+    suspend fun idRows(query: SupportSQLiteQuery): List<String>
+
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, HiddenItemEntity::class,
+            AlbumPrefsEntity::class
+        ]
+    )
+    fun summaryRows(query: SupportSQLiteQuery): Flow<ListSummary>
+
     @Query("SELECT $VIEWER_COLUMNS FROM media WHERE id = :id")
     suspend fun viewerItem(id: String): ViewerItem?
+
+    /** At most 999 ids per call. */
+    @Query("SELECT $VIEWER_COLUMNS FROM media WHERE id IN (:ids)")
+    suspend fun viewerItems(ids: List<String>): List<ViewerItem>
 
     /** The folder an item is in, as `<volume>:<relative path>` (see [AlbumEntity.sourceRef]). */
     @Query("SELECT a.sourceRef FROM album a JOIN media m ON m.albumId = a.id WHERE m.id = :id")
     suspend fun folderOf(id: String): String?
+
+    /** Favorites (spec §4.8) as PhotoXT last heard them, set at once when the user acts. */
+    @Query("UPDATE media SET favorite = :favorite WHERE id IN (:ids)")
+    suspend fun setFavorite(ids: List<String>, favorite: Boolean)
 }
 
 fun MediaDao.viewerItems(query: MediaListQuery): PagingSource<Int, ViewerItem> =
@@ -54,9 +97,18 @@ fun MediaDao.viewerItems(query: MediaListQuery): PagingSource<Int, ViewerItem> =
 suspend fun MediaDao.allViewerItems(query: MediaListQuery): List<ViewerItem> =
     viewerItemList(query.items())
 
-/** Where [item] sits among the items of [query], 0 being the newest. */
+/** Where [item] sits among the items of [query], 0 being the first; 0 when it isn't there. */
 suspend fun MediaDao.positionOf(query: MediaListQuery, item: ViewerItem): Int =
-    count(query.countBefore(item.takenAt, item.id))
+    intOrNull(query.positionOf(item.id)) ?: 0
+
+/** The ids of [query]'s items in display order, for Custom order's start (spec §4.2). */
+suspend fun MediaDao.idsOf(query: MediaListQuery): List<String> = idRows(query.ids())
+
+/** How many items [query] lists. */
+suspend fun MediaDao.countOf(query: MediaListQuery): Int = count(query.count())
+
+/** What a smart album's tile shows (spec §4.8): its count, newest item and size. */
+fun MediaDao.summary(query: MediaListQuery): Flow<ListSummary> = summaryRows(query.summary())
 
 fun MediaDao.timeline(query: TimelineQuery): PagingSource<Int, TimelineRow> =
     timelineRows(query.rows())
@@ -109,7 +161,7 @@ interface MediaIndexDao {
     suspend fun deleteCursorsOutside(volumes: List<String>)
 }
 
-/** Resume points of videos (spec §4.6). */
+/** Resume points of videos (spec §4.6), which history shows as *Continue watching* (§4.9). */
 @Dao
 interface PlaybackDao {
     @Query("SELECT * FROM playback_position WHERE mediaId = :mediaId")
@@ -118,8 +170,51 @@ interface PlaybackDao {
     @Upsert
     suspend fun save(position: PlaybackPositionEntity)
 
+    @Upsert
+    suspend fun saveAll(positions: List<PlaybackPositionEntity>)
+
     @Query("DELETE FROM playback_position WHERE mediaId = :mediaId")
     suspend fun clear(mediaId: String)
+
+    /** At most 900 ids per call. */
+    @Query("DELETE FROM playback_position WHERE mediaId IN (:ids)")
+    suspend fun forget(ids: List<String>)
+
+    @Query("DELETE FROM playback_position")
+    suspend fun clearAll()
+
+    @Query("DELETE FROM playback_position WHERE updatedAt >= :from AND updatedAt < :until")
+    suspend fun clearRange(from: Long, until: Long)
+
+    @Query(
+        "DELETE FROM playback_position WHERE mediaId IN " +
+            "(SELECT id FROM media WHERE albumId = :albumId)"
+    )
+    suspend fun forgetAlbum(albumId: String)
+
+    @Query("DELETE FROM playback_position WHERE updatedAt < :before")
+    suspend fun trim(before: Long)
+
+    @Query("SELECT * FROM playback_position")
+    suspend fun all(): List<PlaybackPositionEntity>
+
+    /**
+     * Videos left part-way, the latest first (spec §4.9): past the first 3 s and short of the
+     * last 3 s and of 95%, as [com.photoxt.core.media] resumes them. Hidden items never show.
+     */
+    @Query(
+        """
+        SELECT m.id, m.contentUri, m.source, m.modifiedAt, m.remoteVersion, m.accountId,
+            m.name, p.positionMs, p.durationMs
+        FROM playback_position p JOIN media m ON m.id = p.mediaId
+        WHERE m.kind = 'VIDEO' AND p.positionMs >= 3000
+            AND (p.durationMs <= 0 OR (p.positionMs <= p.durationMs - 3000
+                AND p.positionMs <= p.durationMs * 0.95))
+            AND m.id NOT IN (SELECT mediaId FROM hidden_item)
+        ORDER BY p.updatedAt DESC LIMIT :limit
+        """
+    )
+    fun continueWatching(limit: Int): Flow<List<ContinueRow>>
 }
 
 @Dao
@@ -137,6 +232,10 @@ interface AlbumDao {
         FROM (
             SELECT a.id, a.type, a.sourceRef, a.title, a.accountId, t.state,
                 COUNT(m.id) AS count, COALESCE(MAX(m.takenAt), 0) AS latestTakenAt,
+                COALESCE(a.createdAt, MIN(m.addedAt), 0) AS createdAt,
+                COALESCE(SUM(m.bytes), 0) AS totalBytes,
+                COALESCE((SELECT pr.coverId FROM album_prefs pr JOIN media pc
+                    ON pc.id = pr.coverId WHERE pr.albumId = a.id),
                 CASE WHEN a.rootId IS NULL THEN
                     (SELECT c.id FROM media c WHERE c.albumId = a.id
                         ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
@@ -144,12 +243,12 @@ interface AlbumDao {
                     (SELECT c.id FROM media c
                         WHERE c.albumId IN (SELECT y.id FROM album y WHERE y.rootId = a.id)
                         ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
-                END AS coverId
+                END) AS coverId
             FROM album a
             LEFT JOIN tracked_folder t ON t.albumId = a.id
             LEFT JOIN album x ON (a.rootId IS NULL AND x.id = a.id) OR x.rootId = a.id
             LEFT JOIN media m ON m.albumId = x.id
-            WHERE a.parentId IS NULL
+            WHERE a.parentId IS NULL AND a.type IN ('DEVICE_FOLDER', 'DRIVE_FOLDER')
             GROUP BY a.id
             HAVING count > 0 OR a.type = 'DRIVE_FOLDER' OR a.pending = 1
         ) s
@@ -167,8 +266,12 @@ interface AlbumDao {
         FROM (
             SELECT a.id, a.type, a.sourceRef, a.title, a.accountId, NULL AS state,
                 COUNT(m.id) AS count, COALESCE(MAX(m.takenAt), 0) AS latestTakenAt,
-                (SELECT c.id FROM media c WHERE c.albumId = a.id
-                    ORDER BY c.takenAt DESC, c.id DESC LIMIT 1) AS coverId
+                COALESCE(a.createdAt, MIN(m.addedAt), 0) AS createdAt,
+                COALESCE(SUM(m.bytes), 0) AS totalBytes,
+                COALESCE((SELECT pr.coverId FROM album_prefs pr JOIN media pc
+                    ON pc.id = pr.coverId WHERE pr.albumId = a.id),
+                    (SELECT c.id FROM media c WHERE c.albumId = a.id
+                        ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)) AS coverId
             FROM album a LEFT JOIN media m ON m.albumId = a.id
             WHERE a.parentId = :parentId
             GROUP BY a.id
@@ -181,6 +284,9 @@ interface AlbumDao {
 
     @Query("SELECT * FROM album WHERE id = :id")
     fun album(id: String): Flow<AlbumEntity?>
+
+    @Query("SELECT * FROM album WHERE id = :id")
+    suspend fun albumRow(id: String): AlbumEntity?
 }
 
 /** Google accounts, tracked Drive folders and Drive items' side tables (spec §5.4). */

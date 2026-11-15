@@ -3,6 +3,11 @@ package com.photoxt.core.transfer
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.StreamingAead
+import com.google.crypto.tink.streamingaead.PredefinedStreamingAeadParameters
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.photoxt.core.auth.DriveTokens
 import com.photoxt.core.database.AccountEntity
 import com.photoxt.core.database.AlbumEntity
@@ -21,6 +26,8 @@ import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.vault.Vault
+import com.photoxt.core.vault.VaultKeys
 import java.io.File
 import java.time.Clock
 import java.time.Instant
@@ -60,9 +67,12 @@ class Harness : AutoCloseable {
     )
     val files = DriveFiles(http, DriveUploads(http), originals)
     val kicks = mutableListOf<Boolean>()
+    val vault = Vault(context, testVaultKeys()).also {
+        File(context.filesDir, "vault").deleteRecursively()
+    }
 
     /** A new engine, as a new process would have after the old one was killed. */
-    fun newEngine() = TransferEngine(database, device, files, env, clock)
+    fun newEngine() = TransferEngine(database, device, files, env, clock, vault, store)
 
     var engine = newEngine()
     val queue: TransferQueue
@@ -269,6 +279,18 @@ class FakeEnvironment(override val workDir: File) : TransferEnvironment {
     override suspend fun trackFolder(account: String, folderId: String, name: String) {
         tracked += "$account:$folderId:$name"
     }
+}
+
+/** The vault's key without the Android Keystore, which Robolectric doesn't have. */
+fun testVaultKeys(): VaultKeys {
+    StreamingAeadConfig.register()
+    val config = RegistryConfiguration.get()
+    val aead = KeysetHandle.generateNew(
+        PredefinedStreamingAeadParameters.AES128_GCM_HKDF_4KB,
+        config
+    )
+        .getPrimitive(config, StreamingAead::class.java)
+    return VaultKeys { aead }
 }
 
 /** A clock that moves only when told: retries wait out their backoff on it. */

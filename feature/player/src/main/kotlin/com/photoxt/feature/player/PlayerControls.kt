@@ -63,7 +63,8 @@ internal class ControlsActions(
     val onBack: () -> Unit,
     val onAspect: (VideoAspect) -> Unit,
     val onRotationLock: (Boolean) -> Unit,
-    val onPictureInPicture: () -> Unit
+    val onPictureInPicture: () -> Unit,
+    val onBookmark: () -> Unit = {}
 )
 
 /** Top bar with the options, centre play controls, and the seek bar. */
@@ -135,6 +136,7 @@ private fun TopControls(
             R.string.player_rotation_lock,
             actions.onRotationLock
         )
+        BarIcon(DesignR.drawable.ic_bookmark, R.string.player_bookmark, actions.onBookmark)
         BarIcon(DesignR.drawable.ic_pip, R.string.player_pip, actions.onPictureInPicture)
     }
 }

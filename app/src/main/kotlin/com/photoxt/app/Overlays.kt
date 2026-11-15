@@ -11,6 +11,9 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import com.photoxt.core.model.MediaList
+import com.photoxt.core.ui.RequireUnlocked
+import com.photoxt.feature.library.VaultViewerScreen
 import com.photoxt.feature.player.PlayerScreen
 import com.photoxt.feature.viewer.CompareScreen
 import com.photoxt.feature.viewer.PanoramaScreen
@@ -56,24 +59,39 @@ internal fun Overlays(navigation: NavigationState) {
 private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<NavKey> =
     entryProvider {
         entry<ViewerKey> { key ->
-            ViewerScreen(
-                start = key.start,
-                navigation = ViewerNavigation(
-                    onClose = { navigation.closeOverlay(key) },
-                    onPlay = { navigation.openOverlay(PlayerKey(it)) },
-                    onSlideshow = { navigation.openOverlay(SlideshowKey(it)) },
-                    onCompare = { first, second ->
-                        navigation.openOverlay(CompareKey(first, second))
-                    },
-                    onPanorama = { uri, crop -> navigation.openOverlay(PanoramaKey(uri, crop)) }
+            val close = { navigation.closeOverlay(key) }
+            // The Hidden list's viewer stays behind the unlock, also when restored (spec §4.8).
+            PrivateIf(key.list == MediaList.HIDDEN, onLocked = close) {
+                ViewerScreen(
+                    start = key.start,
+                    navigation = ViewerNavigation(
+                        onClose = close,
+                        onPlay = { navigation.openOverlay(PlayerKey(it, key.albumId)) },
+                        onSlideshow = { navigation.openOverlay(SlideshowKey(it)) },
+                        onCompare = { first, second ->
+                            navigation.openOverlay(CompareKey(first, second))
+                        },
+                        onPanorama = { uri, crop -> navigation.openOverlay(PanoramaKey(uri, crop)) }
+                    )
                 )
-            )
+            }
         }
         entry<PlayerKey> { key ->
-            PlayerScreen(mediaId = key.mediaId, onClose = { navigation.closeOverlay(key) })
+            PlayerScreen(
+                mediaId = key.mediaId,
+                onClose = { navigation.closeOverlay(key) },
+                albumId = key.albumId,
+                startAt = key.startAt
+            )
+        }
+        entry<VaultViewerKey> { key ->
+            VaultViewerScreen(startIndex = key.index, onClose = { navigation.closeOverlay(key) })
         }
         entry<SlideshowKey> { key ->
-            SlideshowScreen(start = key.start, onClose = { navigation.closeOverlay(key) })
+            val close = { navigation.closeOverlay(key) }
+            PrivateIf(key.list == MediaList.HIDDEN, onLocked = close) {
+                SlideshowScreen(start = key.start, onClose = close)
+            }
         }
         entry<CompareKey> { key ->
             CompareScreen(
@@ -90,3 +108,9 @@ private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<Na
             )
         }
     }
+
+/** [content] behind the Hidden and vault lock when [private], else as it is. */
+@Composable
+internal fun PrivateIf(private: Boolean, onLocked: () -> Unit, content: @Composable () -> Unit) {
+    if (private) RequireUnlocked(onLocked, content) else content()
+}

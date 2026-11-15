@@ -2,6 +2,8 @@
 <resources>
     <string name="date_today">Today</string>
     <string name="date_yesterday">Yesterday</string>
+    <!-- The header over an album's pinned items (spec §4.8). -->
+    <string name="group_pinned">Pinned</string>
 
     <!-- TalkBack descriptions of grid tiles. %1$s is when the item was taken; for a video, %1$s is its length and %2$s when it was taken. -->
     <string name="media_photo">Photo, %1$s</string>
@@ -24,4 +26,59 @@
     <string name="action_paste">Paste</string>
     <string name="action_clear_clipboard">Clear clipboard</string>
     <string name="action_cancel">Cancel</string>
+
+    <!-- Sorting (spec §4.2). -->
+    <string name="sort_title">Sort by</string>
+    <string name="sort_date_taken">Date taken</string>
+    <string name="sort_date_added">Date added</string>
+    <string name="sort_date_modified">Date modified</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_size">Size</string>
+    <string name="sort_custom">Custom order</string>
+    <string name="sort_newest_item">Newest item</string>
+    <string name="sort_date_created">Date created</string>
+    <string name="sort_item_count">Item count</string>
+    <string name="sort_total_size">Total size</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_a_to_z">A to Z</string>
+    <string name="sort_z_to_a">Z to A</string>
+    <string name="sort_largest">Largest first</string>
+    <string name="sort_smallest">Smallest first</string>
+    <string name="sort_apply_to_all">Apply to all albums</string>
+    <string name="action_sort">Sort</string>
+
+    <!-- Organising (spec §4.8). -->
+    <string name="add_to_album_title">Add to album</string>
+    <string name="add_to_new_album">New album</string>
+    <string name="bookmark_title">Bookmark</string>
+    <!-- %1$s is a video time, e.g. 1:23. -->
+    <string name="bookmark_moment_title">Bookmark the moment at %1$s</string>
+    <string name="bookmark_new_collection">New collection</string>
+    <string name="bookmark_collection_name">Collection name</string>
+    <string name="bookmark_note">Note (optional)</string>
+    <string name="bookmark_save">Save</string>
+    <string name="smart_album_title">Smart album</string>
+    <string name="smart_album_name">Name</string>
+    <string name="smart_album_save">Save</string>
+    <string name="smart_any">All</string>
+    <string name="smart_photos">Photos</string>
+    <string name="smart_videos">Videos</string>
+    <string name="smart_anywhere">Anywhere</string>
+    <string name="smart_phone">Phone</string>
+    <string name="smart_drive">Drive</string>
+    <string name="smart_from_year">From year</string>
+    <string name="smart_to_year">To year</string>
+    <string name="smart_min_mb">Over (MB)</string>
+    <string name="smart_min_minutes">Longer than (min)</string>
+    <string name="smart_camera">Camera contains</string>
+    <string name="smart_favorites">Favorites only</string>
+    <string name="smart_located">With a location</string>
+    <string name="shortcut_album">Album</string>
+    <!-- The lock on Hidden and the vault (spec §4.8). -->
+    <string name="lock_back">Back</string>
+    <string name="lock_body">Locked. Unlock with your fingerprint or screen lock to see these items.</string>
+    <string name="lock_no_screen_lock">Set up a screen lock (PIN, pattern, password or fingerprint) to use Hidden and the vault.</string>
+    <string name="lock_unlock">Unlock</string>
+    <string name="lock_settings">Open security settings</string>
 </resources>

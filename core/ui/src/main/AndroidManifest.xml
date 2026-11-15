@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Hidden and the vault open behind a fingerprint or screen-lock unlock (spec §4.8). -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+</manifest>

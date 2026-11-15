@@ -80,9 +80,9 @@ class DriveSync @Inject constructor(
                 override fun onStart(owner: LifecycleOwner) = onForeground()
             }
         )
+        // WorkManager opens its database on first use: off the main thread.
+        scope.launch { work.schedule() }
         scope.launch {
-            // WorkManager opens its database on first use: off the main thread.
-            work.schedule()
             drive.trackedFoldersIn(TrackedFolderState.SCANNING).forEach { scan(it.albumId) }
             fillThumbnails(rootId = null)
         }

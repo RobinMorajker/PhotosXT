@@ -19,6 +19,8 @@
     <string name="player_percent">%1$d%%</string>
     <string name="player_resumed">Resumed at %1$s</string>
     <string name="player_start_over">Start over</string>
+    <string name="player_bookmark">Bookmark this moment</string>
+    <string name="player_bookmark_collection">Bookmarks</string>
 
     <string name="aspect_fit">Fit</string>
     <string name="aspect_fill">Fill</string>

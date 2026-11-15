@@ -8,7 +8,6 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.photoxt.core.database.MediaDao
-import com.photoxt.core.database.MediaListQuery
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.database.positionOf
 import com.photoxt.core.database.viewerItems
@@ -27,6 +26,7 @@ import com.photoxt.core.model.DisplayMode
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.ViewerStart
+import com.photoxt.core.organize.OwnAlbums
 import com.photoxt.core.sync.DeviceConditions
 import com.photoxt.core.sync.OfflinePins
 import com.photoxt.core.transfer.SystemClipboard
@@ -39,6 +39,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -47,6 +49,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,7 +59,13 @@ import kotlinx.coroutines.launch
 class Blur(val width: Int, val height: Int, val pixels: IntArray)
 
 /** What the details sheet shows for one item. */
-data class ViewerDetails(val item: ViewerItem, val folder: String?, val media: MediaDetails)
+data class ViewerDetails(
+    val item: ViewerItem,
+    val folder: String?,
+    val media: MediaDetails,
+    /** How often it was viewed (spec §4.9). */
+    val views: Int = 0
+)
 
 /**
  * The viewer of one grid's items, starting at [start] (spec §4.5). Drive photos follow the cache
@@ -74,7 +84,9 @@ class ViewerViewModel @AssistedInject constructor(
     private val settings: SettingsStore,
     private val conditions: DeviceConditions,
     private val transfers: Transfers,
-    private val systemClipboard: SystemClipboard
+    private val systemClipboard: SystemClipboard,
+    private val ownAlbums: OwnAlbums,
+    organizeParts: ViewerOrganizeParts
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -84,13 +96,20 @@ class ViewerViewModel @AssistedInject constructor(
     /** The grid this viewer was opened from, for the flight back into it. */
     val sourceKey: String = heroSourceKey(start.albumId, start.filter)
 
-    private val query = MediaListQuery(start.filter, start.albumId)
+    /** The grid's items in its order: a smart album's rule is read first. */
+    private val query = viewModelScope.async { ownAlbums.queryOf(start) }
 
     /** The items, in the grid's order, loaded around the start so it shows at once. */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val items: Flow<PagingData<ViewerItem>> =
-        Pager(pagingConfig, initialKey = start.index) { mediaDao.viewerItems(query) }
-            .flow
+        flow { emit(query.await()) }
+            .flatMapLatest { query ->
+                Pager(pagingConfig, initialKey = start.index) { mediaDao.viewerItems(query) }.flow
+            }
             .cachedIn(viewModelScope)
+
+    /** Favorites, bookmarks, albums, hiding, the vault and history (spec §4.8, §4.9). */
+    val organize = ViewerOrganize(start, viewModelScope, organizeParts)
 
     val displayMode: StateFlow<DisplayMode> = session.displayMode.asStateFlow()
     val zoomLock: StateFlow<Boolean> = session.zoomLock.asStateFlow()
@@ -239,7 +258,7 @@ class ViewerViewModel @AssistedInject constructor(
 
     /** Where the item [id] is now among this viewer's items, or null if it is gone. */
     suspend fun indexOf(id: String): Int? =
-        mediaDao.viewerItem(id)?.let { mediaDao.positionOf(query, it) }
+        mediaDao.viewerItem(id)?.let { mediaDao.positionOf(query.await(), it) }
 
     suspend fun details(item: ViewerItem): ViewerDetails {
         // A Drive item: what Drive said about it.
@@ -247,7 +266,12 @@ class ViewerViewModel @AssistedInject constructor(
             camera = item.camera,
             location = item.lat?.let { lat -> item.lng?.let { lng -> GeoPoint(lat, lng) } }
         )
-        return ViewerDetails(item, mediaDao.folderOf(item.id), media)
+        return ViewerDetails(
+            item,
+            mediaDao.folderOf(item.id),
+            media,
+            organize.viewCount(item.id).first()
+        )
     }
 
     /** Delete, and Copy for a Drive photo (spec §4.7). */

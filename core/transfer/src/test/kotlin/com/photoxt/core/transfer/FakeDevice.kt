@@ -21,6 +21,7 @@ class FakeDevice : DeviceStore {
         var bytes: ByteArray,
         val ours: Boolean,
         var trashed: Boolean = false,
+        var favorite: Boolean = false,
         var pending: Boolean = false,
         val takenAt: Long? = null
     )
@@ -116,12 +117,12 @@ class FakeDevice : DeviceStore {
         writable(uri).name = name
     }
 
-    override fun trash(uri: String) {
-        writable(uri).trashed = true
+    override fun setTrashed(uri: String, trashed: Boolean) {
+        writable(uri).trashed = trashed
     }
 
-    override fun restore(uri: String) {
-        writable(uri).trashed = false
+    override fun setFavorite(uri: String, favorite: Boolean) {
+        writable(uri).favorite = favorite
     }
 
     override fun delete(uri: String) {

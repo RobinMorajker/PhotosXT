@@ -10,7 +10,9 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:common"))
     implementation(project(":core:designsystem"))
+    implementation(project(":core:organize"))
     implementation(project(":core:media"))
     implementation(project(":core:sync"))
     implementation(project(":core:transfer"))

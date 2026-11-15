@@ -268,7 +268,8 @@ private fun FinishedSnackbars(
                         event.failed
                     )
 
-                event.done == 0 -> return@collect
+                // The heart shows a favorite at once; only a failure needs saying.
+                event.done == 0 || event.op.message == null -> return@collect
 
                 event.op == TransferOp.MKDIR -> resources.getString(
                     R.string.transfer_folder_made,
@@ -276,7 +277,7 @@ private fun FinishedSnackbars(
                 )
 
                 else -> resources.getQuantityString(
-                    event.op.message,
+                    event.op.message ?: return@collect,
                     event.done,
                     event.done,
                     event.title
@@ -298,7 +299,7 @@ private fun FinishedSnackbars(
     }
 }
 
-private val TransferOp.message: Int
+private val TransferOp.message: Int?
     get() = when (this) {
         TransferOp.COPY -> R.plurals.transfer_copied
         TransferOp.MOVE -> R.plurals.transfer_moved
@@ -308,13 +309,18 @@ private val TransferOp.message: Int
         TransferOp.RENAME -> R.plurals.transfer_renamed
         TransferOp.CONVERT -> R.plurals.transfer_converted
         TransferOp.MKDIR, TransferOp.REMOVE_FROM_ALBUM -> R.plurals.transfer_removed
+        TransferOp.VAULT -> R.plurals.transfer_vaulted
+        TransferOp.UNVAULT -> R.plurals.transfer_unvaulted
+        TransferOp.FAVORITE, TransferOp.UNFAVORITE -> null
     }
 
 private val DEVICE_WAITS = setOf(
     WaitFor.DEVICE_WRITE,
     WaitFor.DEVICE_TRASH,
     WaitFor.DEVICE_RESTORE,
-    WaitFor.DEVICE_DELETE
+    WaitFor.DEVICE_DELETE,
+    WaitFor.DEVICE_FAVORITE,
+    WaitFor.DEVICE_UNFAVORITE
 )
 
 /** MediaStore takes a few hundred items per request comfortably. */

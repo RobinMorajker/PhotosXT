@@ -18,7 +18,9 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.media.Panorama
+import com.photoxt.core.model.ItemSort
 import com.photoxt.core.model.MediaFilter
+import com.photoxt.core.model.MediaList
 import com.photoxt.core.model.ViewerStart
 import kotlinx.serialization.Serializable
 
@@ -94,36 +96,83 @@ data object TrashKey : NavKey
 @Serializable
 data object TransfersKey : NavKey
 
+/** An album group's albums (spec §4.8), on the Albums stack. */
+@Serializable
+data class AlbumGroupKey(val groupId: String, val title: String) : NavKey
+
+/** A Library list (spec §4.1): Favorites, Videos, Screenshots, Offline, or the Hidden items. */
+@Serializable
+data class MediaListKey(val list: MediaList) : NavKey
+
+/** A hidden album, opened from Hidden: it stays behind the unlock (spec §4.8). */
+@Serializable
+data class HiddenAlbumKey(val albumId: String, val title: String) : NavKey
+
+/** Bookmarks (spec §4.8), on the Library stack. */
+@Serializable
+data object BookmarksKey : NavKey
+
+/** History (spec §4.9), on the Library stack. */
+@Serializable
+data object HistoryKey : NavKey
+
+/** Hidden (spec §4.8), on the Library stack. */
+@Serializable
+data object HiddenKey : NavKey
+
+/** The vault (spec §4.8), on the Library stack. */
+@Serializable
+data object VaultKey : NavKey
+
+/** Settings (spec §4.21), on the Library stack. */
+@Serializable
+data object SettingsKey : NavKey
+
 // Full-screen destinations shown over the tabs, so the grid stays underneath (spec §4.5): the
 // viewer flies back into it, and closing any of them returns to exactly where the user was.
 
-/** The viewer over one grid's items, starting at item [id], the [index]th of them. */
+/** The viewer over one grid's items, in its order, starting at item [id], the [index]th. */
 @Serializable
 data class ViewerKey(
     val albumId: String?,
     val filter: MediaFilter,
     val index: Int,
-    val id: String
+    val id: String,
+    val sort: ItemSort = ItemSort(),
+    val list: MediaList? = null
 ) : NavKey {
-    constructor(start: ViewerStart) : this(start.albumId, start.filter, start.index, start.id)
+    constructor(start: ViewerStart) :
+        this(start.albumId, start.filter, start.index, start.id, start.sort, start.list)
 
-    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id)
+    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id, sort, list)
 }
 
+/**
+ * The player, for a video opened from album [albumId] (for the history, spec §4.9), at
+ * [startAt] for a bookmarked moment (spec §4.8).
+ */
 @Serializable
-data class PlayerKey(val mediaId: String) : NavKey
+data class PlayerKey(val mediaId: String, val albumId: String? = null, val startAt: Long? = null) :
+    NavKey
 
 @Serializable
 data class SlideshowKey(
     val albumId: String?,
     val filter: MediaFilter,
     val index: Int,
-    val id: String
+    val id: String,
+    val sort: ItemSort = ItemSort(),
+    val list: MediaList? = null
 ) : NavKey {
-    constructor(start: ViewerStart) : this(start.albumId, start.filter, start.index, start.id)
+    constructor(start: ViewerStart) :
+        this(start.albumId, start.filter, start.index, start.id, start.sort, start.list)
 
-    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id)
+    val start: ViewerStart get() = ViewerStart(albumId, filter, index, id, sort, list)
 }
+
+/** A vault item full screen, the [index]th of the vault (spec §4.8). */
+@Serializable
+data class VaultViewerKey(val index: Int) : NavKey
 
 @Serializable
 data class CompareKey(val firstId: String, val secondId: String) : NavKey

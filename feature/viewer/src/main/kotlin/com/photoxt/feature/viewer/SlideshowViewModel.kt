@@ -4,11 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoxt.core.database.MediaDao
-import com.photoxt.core.database.MediaListQuery
 import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.database.allViewerItems
 import com.photoxt.core.model.DisplayMode
 import com.photoxt.core.model.ViewerStart
+import com.photoxt.core.organize.OwnAlbums
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
@@ -45,6 +45,7 @@ internal data class SlideshowPlan(val order: List<Int> = emptyList(), val positi
 class SlideshowViewModel @AssistedInject constructor(
     @Assisted private val start: ViewerStart,
     mediaDao: MediaDao,
+    ownAlbums: OwnAlbums,
     private val session: ViewerSession,
     private val savedState: SavedStateHandle
 ) : ViewModel() {
@@ -76,7 +77,7 @@ class SlideshowViewModel @AssistedInject constructor(
 
     init {
         viewModelScope.launch {
-            val list = mediaDao.allViewerItems(MediaListQuery(start.filter, start.albumId))
+            val list = mediaDao.allViewerItems(ownAlbums.queryOf(start))
             items.value = list
             val first = list.indexOfFirst { it.id == start.id }.takeIf { it >= 0 } ?: start.index
             plan.value = SlideshowPlan(

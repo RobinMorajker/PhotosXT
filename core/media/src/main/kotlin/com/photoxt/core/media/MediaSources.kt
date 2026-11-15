@@ -21,7 +21,8 @@ data class MediaRef(
     val contentUri: String?,
     val modifiedAt: Long,
     val accountId: String? = null,
-    val remoteId: String? = null,
+    /** A Drive item's file id: unless given, the end of its id (`drive:<account>:<file>`). */
+    val remoteId: String? = if (source == SourceType.DRIVE) id.substringAfterLast(':') else null,
     val remoteVersion: Long? = null
 )
 

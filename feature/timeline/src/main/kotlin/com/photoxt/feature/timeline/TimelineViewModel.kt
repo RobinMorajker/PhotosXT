@@ -2,6 +2,7 @@ package com.photoxt.feature.timeline
 
 import android.content.ContentResolver
 import android.net.Uri
+import android.os.SystemClock
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -11,22 +12,35 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import androidx.paging.map
+import com.photoxt.core.common.PxtLog
+import com.photoxt.core.database.AlbumDao
+import com.photoxt.core.database.AlbumEntity
 import com.photoxt.core.database.MediaDao
+import com.photoxt.core.database.MediaListQuery
 import com.photoxt.core.database.ShareTarget
 import com.photoxt.core.database.TimelineQuery
 import com.photoxt.core.database.TimelineRow
 import com.photoxt.core.database.groupCounts
 import com.photoxt.core.database.stampsInGroup
 import com.photoxt.core.database.timeline
+import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.media.DeviceMediaSync
 import com.photoxt.core.media.MediaAccessMonitor
 import com.photoxt.core.media.MediaRef
 import com.photoxt.core.media.thumbnailOf
+import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.ClipboardMode
+import com.photoxt.core.model.DateGrouping
+import com.photoxt.core.model.ItemSort
+import com.photoxt.core.model.ItemSortField
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.MediaList
+import com.photoxt.core.model.SmartRule
 import com.photoxt.core.model.SourceType
+import com.photoxt.core.organize.AlbumOptions
+import com.photoxt.core.organize.OwnAlbums
 import com.photoxt.core.transfer.Clip
 import com.photoxt.core.transfer.SystemClipboard
 import com.photoxt.core.transfer.Transfers
@@ -46,6 +60,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -60,14 +75,33 @@ data class TimelineUiState(
     val filter: MediaFilter = MediaFilter.ALL,
     val density: GridDensity = GridDensity.Default,
     val layout: TimelineLayout = TimelineLayout.EMPTY,
-    /** Selected item ids, each with its capture time. */
+    /** Selected item ids, each with its group time. */
     val selection: Map<String, Long> = emptyMap(),
     /** A Drive album's subfolders and sync state; null for Pictures and phone albums. */
     val drive: DriveAlbumInfo? = null,
     /** Pull-to-refresh is running. */
     val refreshing: Boolean = false,
     /** What the clipboard holds (spec §4.7), shown as the paste bar. */
-    val clip: Clip? = null
+    val clip: Clip? = null,
+    /** The grid's order (spec §4.2). */
+    val sort: ItemSort = ItemSort(),
+    /** What the user set for this album (spec §4.2, §4.8); null outside albums. */
+    val album: AlbumState? = null,
+    /** Custom order's *Edit order*: dragging moves tiles. */
+    val editingOrder: Boolean = false
+)
+
+/** An album's own options and kind, for its menu. */
+@Immutable
+data class AlbumState(
+    val type: AlbumType,
+    val pinned: Boolean,
+    val hidden: Boolean,
+    val hideFromPictures: Boolean,
+    val bookmarked: Boolean,
+    /** A smart album's rule. */
+    val rule: SmartRule? = null,
+    val cover: Any? = null
 )
 
 /** What a Drive album shows besides its items (spec §4.2, §4.3). */
@@ -90,22 +124,30 @@ data class DriveAlbumInfo(
 @Immutable
 data class ChildAlbum(val id: String, val title: String, val count: Int, val cover: Any?)
 
-/** Pictures when [albumId] is null, otherwise the grid of that one album. */
+/**
+ * Pictures when [albumId] and [list] are null, otherwise the grid of one album or one Library
+ * list (Favorites, Videos, Screenshots, Offline, Hidden).
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel(assistedFactory = TimelineViewModel.Factory::class)
 class TimelineViewModel @AssistedInject constructor(
     @Assisted val albumId: String?,
+    @Assisted val list: MediaList?,
     private val mediaDao: MediaDao,
     private val mediaAccess: MediaAccessMonitor,
     private val deviceMediaSync: DeviceMediaSync,
     private val savedState: SavedStateHandle,
     private val driveAlbums: DriveAlbums,
     private val transfers: Transfers,
-    private val systemClipboard: SystemClipboard
+    private val systemClipboard: SystemClipboard,
+    private val options: AlbumOptions,
+    private val settings: SettingsStore,
+    albumDao: AlbumDao,
+    organizeParts: TimelineOrganizeParts
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
-        fun create(albumId: String?): TimelineViewModel
+        fun create(albumId: String?, list: MediaList? = null): TimelineViewModel
     }
 
     val permissions: Array<String> get() = mediaAccess.permissions
@@ -114,16 +156,57 @@ class TimelineViewModel @AssistedInject constructor(
     private val density = savedState.getStateFlow(KEY_DENSITY, GridDensity.Default)
     private val selection = MutableStateFlow<Map<String, Long>>(emptyMap())
     private val refreshing = MutableStateFlow(false)
+    private val editingOrder = savedState.getStateFlow(KEY_EDITING, false)
 
-    // Column changes keep the query (and so the loaded rows); only a new grouping replaces them.
+    /** The album's row: its kind and, for a smart album, its rule. */
+    private val albumRow: Flow<AlbumEntity?> = albumId?.let(albumDao::album) ?: flowOf(null)
+
+    private val rule: Flow<SmartRule?> =
+        albumRow.map { OwnAlbums.decode(it?.rule) }.distinctUntilChanged()
+
+    /** The grid's order: the album's own, Pictures' or the list's (spec §4.2, Scope). */
+    val sort: Flow<ItemSort> = when {
+        list != null -> options.listSort(list)
+        albumId != null -> options.sortOf(albumId)
+        else -> options.picturesSort
+    }
+
+    init {
+        // Pinch density persists with the settings (spec §4.2), one for Pictures, one for albums.
+        if (!savedState.contains(KEY_DENSITY)) {
+            viewModelScope.launch {
+                val view = settings.current().view
+                val saved = if (albumId == null && list == null) {
+                    view.picturesDensity
+                } else {
+                    view.albumDensity
+                }
+                GridDensity.entries.firstOrNull { it.name == saved }?.let {
+                    savedState[KEY_DENSITY] = it
+                }
+            }
+        }
+        // A new sort changes what selected items are grouped by: start over.
+        viewModelScope.launch { sort.distinctUntilChanged().collect { setSelection(emptyMap()) } }
+    }
+
+    // Column changes keep the query (and so the loaded rows); only a new grouping replaces them,
+    // and a plain grid (Name, Size, Custom order) has none.
     private val query: Flow<TimelineQuery> =
-        combine(filter, density) { filter, density ->
-            TimelineQuery(filter, density.grouping, albumId)
+        combine(filter, density, sort, rule) { filter, density, sort, rule ->
+            val grouping = if (sort.field.dated) density.grouping else DateGrouping.DAY
+            TimelineQuery(filter, grouping, albumId, sort, list, rule)
         }.distinctUntilChanged()
+
+    /** When a sort was last picked, to log how long its first rows took (debug builds). */
+    @Volatile
+    private var sortPickedAt = 0L
 
     val rows: Flow<PagingData<GridCell>> = query
         .flatMapLatest { query ->
-            Pager(pagingConfig) { mediaDao.timeline(query) }.flow
+            Pager(pagingConfig) {
+                FirstLoadSource(mediaDao.timeline(query)) { logSortSwitch(query.sort) }
+            }.flow
         }
         .map { rows -> rows.map { it.toCell() } }
         .cachedIn(viewModelScope)
@@ -133,7 +216,8 @@ class TimelineViewModel @AssistedInject constructor(
             TimelineLayout(
                 query.grouping,
                 IntArray(groups.size) { groups[it].groupKey },
-                IntArray(groups.size) { groups[it].count }
+                IntArray(groups.size) { groups[it].count },
+                headed = query.dated
             )
         }
     }
@@ -150,14 +234,31 @@ class TimelineViewModel @AssistedInject constructor(
     private val driveInfo: Flow<DriveAlbumInfo?> =
         if (albumId != null && isDrive) driveAlbums.info(albumId) else flowOf(null)
 
+    /** Selection and album actions that organise (spec §4.8). */
+    val organize: TimelineOrganize = organizeParts.forTimeline(albumId, selection, viewModelScope)
+
+    private val albumState: Flow<AlbumState?> = albumId?.let { id ->
+        combine(albumRow, organize.albumFacts(id), rule) { row, facts, rule ->
+            row?.let { facts.copy(type = it.type, rule = rule) }
+        }
+    } ?: flowOf(null)
+
     val uiState: StateFlow<TimelineUiState> =
         combine(
             combine(access, filter, density, layout, selection, ::TimelineUiState),
-            driveInfo,
-            refreshing,
-            transfers.clipboard
-        ) { state, drive, refreshing, clip ->
-            state.copy(drive = drive, refreshing = refreshing, clip = clip)
+            combine(driveInfo, refreshing, transfers.clipboard, ::Triple),
+            sort,
+            albumState,
+            editingOrder
+        ) { state, (drive, refreshing, clip), sort, album, editing ->
+            state.copy(
+                drive = drive,
+                refreshing = refreshing,
+                clip = clip,
+                sort = sort,
+                album = album,
+                editingOrder = editing && sort.field == ItemSortField.CUSTOM
+            )
         }
             .stateIn(
                 viewModelScope,
@@ -198,21 +299,81 @@ class TimelineViewModel @AssistedInject constructor(
 
     fun setDensity(value: GridDensity) {
         savedState[KEY_DENSITY] = value
+        viewModelScope.launch {
+            settings.updateView {
+                if (albumId == null && list == null) {
+                    it.copy(picturesDensity = value.name)
+                } else {
+                    it.copy(albumDensity = value.name)
+                }
+            }
+        }
     }
+
+    /**
+     * A new sort for this grid (spec §4.2). Picking Custom order in an album starts it from the
+     * order on screen.
+     */
+    fun setSort(value: ItemSort) {
+        sortPickedAt = SystemClock.elapsedRealtime()
+        viewModelScope.launch {
+            val current = sort.first()
+            when {
+                list != null -> options.setListSort(list, value)
+
+                albumId != null -> {
+                    if (value.field == ItemSortField.CUSTOM) {
+                        organize.startCustomOrder(listQuery(current))
+                    }
+                    options.setSort(albumId, value)
+                }
+
+                else -> options.setPicturesSort(value)
+            }
+        }
+    }
+
+    private fun logSortSwitch(sort: ItemSort) {
+        val picked = sortPickedAt
+        if (picked == 0L) return
+        sortPickedAt = 0L
+        val way = if (sort.descending) "down" else "up"
+        PxtLog.d(
+            TAG,
+            "Sort ${sort.field} $way: first rows in ${SystemClock.elapsedRealtime() - picked} ms"
+        )
+    }
+
+    /** *Apply to all albums* (spec §4.2): every album, new ones included, takes [value]. */
+    fun applySortToAll(value: ItemSort) {
+        viewModelScope.launch { options.applyToAll(value) }
+    }
+
+    /** Custom order's *Edit order*: on, dragging a tile moves it; off, it selects again. */
+    fun setEditingOrder(on: Boolean) {
+        savedState[KEY_EDITING] = on
+        if (on) setSelection(emptyMap())
+    }
+
+    /** Drops [movedId] before or [after] [targetId] in Custom order (spec §4.2). */
+    fun reorder(movedId: String, targetId: String, after: Boolean) {
+        viewModelScope.launch {
+            organize.moveTo(listQuery(sort.first()), listOf(movedId), targetId, after)
+        }
+    }
+
+    /** The items of this grid, as the viewer and Custom order read them. */
+    suspend fun listQuery(current: ItemSort): MediaListQuery =
+        MediaListQuery(filter.value, albumId, current, list, rule.first())
 
     fun setSelection(value: Map<String, Long>) {
         selection.value = value
     }
 
-    fun clearSelection() {
-        selection.value = emptyMap()
-    }
-
-    /** Selects or unselects every item of one date group, loaded or not. */
+    /** Selects or unselects every item of one group, loaded or not. */
     fun selectGroup(groupKey: Int, select: Boolean) {
         viewModelScope.launch {
-            val query = TimelineQuery(filter.value, density.value.grouping, albumId)
-            val stamps = mediaDao.stampsInGroup(query, groupKey)
+            val stamps = mediaDao.stampsInGroup(query.first(), groupKey)
             selection.update { selected ->
                 if (select) {
                     selected + stamps.associate { it.id to it.takenAt }
@@ -244,36 +405,21 @@ class TimelineViewModel @AssistedInject constructor(
         mediaDao
     )
 
-    /** The two selected items for Compare, the newer first, or null unless exactly two. */
-    fun comparePair(): Pair<String, String>? {
-        val selected = selection.value.entries.sortedByDescending { it.value }
-        return if (selected.size == 2) selected[0].key to selected[1].key else null
-    }
-
-    /** What to hand to the share sheet, or null when more than [MAX_SHARE] items are selected. */
-    suspend fun shareTargets(): List<ShareTarget>? {
-        val ids = selection.value.keys.toList()
-        if (ids.size > MAX_SHARE) return null
-        return ids.chunked(MAX_SQL_VARIABLES).flatMap { mediaDao.shareTargets(it) }
-    }
-
-    companion object {
-        /** Every shared item travels in the share intent, which Binder caps at about 1 MB. */
-        const val MAX_SHARE = 500
-
-        private const val PAGE_SIZE = 150
+    private companion object {
+        const val TAG = "Timeline"
+        const val PAGE_SIZE = 150
 
         // Placeholders and jumps let the fast scroller land anywhere without loading every page.
-        private val pagingConfig = PagingConfig(
+        val pagingConfig = PagingConfig(
             pageSize = PAGE_SIZE,
             initialLoadSize = PAGE_SIZE * 3,
             enablePlaceholders = true,
             jumpThreshold = PAGE_SIZE * 3
         )
-        private const val MAX_SQL_VARIABLES = 900
-        private const val STOP_TIMEOUT_MS = 5_000L
-        private const val KEY_FILTER = "filter"
-        private const val KEY_DENSITY = "density"
+        const val STOP_TIMEOUT_MS = 5_000L
+        const val KEY_FILTER = "filter"
+        const val KEY_DENSITY = "density"
+        const val KEY_EDITING = "editingOrder"
     }
 }
 
@@ -369,6 +515,25 @@ class TimelineFileOps internal constructor(
 
     /** Renames this album's folder; null when nothing changed. */
     suspend fun renameAlbum(name: String): Long? = albumId?.let { transfers.renameAlbum(it, name) }
+
+    /** The two selected items for Compare, the newer first, or null unless exactly two. */
+    fun comparePair(): Pair<String, String>? {
+        val pair = selection.value.entries.sortedByDescending { it.value }
+        return if (pair.size == 2) pair[0].key to pair[1].key else null
+    }
+
+    /** What to hand to the share sheet, or null when more than [MAX_SHARE] items are selected. */
+    suspend fun shareTargets(): List<ShareTarget>? {
+        val ids = selected
+        if (ids.size > MAX_SHARE) return null
+        return ids.chunked(MAX_SQL_VARIABLES).flatMap { mediaDao.shareTargets(it) }
+    }
+
+    companion object {
+        /** Every shared item travels in the share intent, which Binder caps at about 1 MB. */
+        const val MAX_SHARE = 500
+        private const val MAX_SQL_VARIABLES = 900
+    }
 }
 
 internal fun TimelineRow.toCell(): GridCell {
@@ -394,7 +559,10 @@ internal fun TimelineRow.toCell(): GridCell {
             favorite = favorite,
             takenAt = takenAt,
             width = if (sideways) height else width,
-            height = if (sideways) width else height
+            height = if (sideways) width else height,
+            groupTime = groupTime,
+            name = name.orEmpty(),
+            bytes = bytes
         )
     }
 }

@@ -31,6 +31,15 @@ interface DriveApi {
         @Query("includeItemsFromAllDrives") includeItemsFromAllDrives: Boolean = true
     ): FileList
 
+    /** Lists PhotoXT's own files in the app-data folder (spec §4.8, `drive.appdata`). */
+    @GET("drive/v3/files")
+    suspend fun listAppData(
+        @Tag account: DriveAccount,
+        @Query("q") query: String,
+        @Query("fields") fields: String,
+        @Query("spaces") spaces: String = "appDataFolder"
+    ): FileList
+
     @GET("drive/v3/files/{id}")
     suspend fun get(
         @Tag account: DriveAccount,

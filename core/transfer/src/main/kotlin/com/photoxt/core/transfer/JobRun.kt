@@ -32,6 +32,9 @@ interface TransferEnvironment {
 
     /** A Drive folder made by *New album* becomes a tracked album. */
     suspend fun trackFolder(account: String, folderId: String, name: String)
+
+    /** A small JPEG of phone item [uri], for the vault's grid (spec §4.8); null without one. */
+    fun thumbnailJpeg(uri: String): ByteArray? = null
 }
 
 /** What a running job is doing, for the progress notification. */
@@ -105,7 +108,9 @@ internal class JobRun(
     fun deviceWait(): WaitFor = when (job.op) {
         TransferOp.TRASH -> WaitFor.DEVICE_TRASH
         TransferOp.RESTORE -> WaitFor.DEVICE_RESTORE
-        TransferOp.DELETE -> WaitFor.DEVICE_DELETE
+        TransferOp.DELETE, TransferOp.VAULT -> WaitFor.DEVICE_DELETE
+        TransferOp.FAVORITE -> WaitFor.DEVICE_FAVORITE
+        TransferOp.UNFAVORITE -> WaitFor.DEVICE_UNFAVORITE
         else -> WaitFor.DEVICE_WRITE
     }
 

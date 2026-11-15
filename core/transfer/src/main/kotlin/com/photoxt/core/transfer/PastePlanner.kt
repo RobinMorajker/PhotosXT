@@ -106,6 +106,9 @@ internal class PastePlanner(private val files: FileOpsDao) {
                 account = album.accountId,
                 folderId = driveFolderOf(album)
             )
+
+            // A virtual or smart album is no folder to paste files into (spec §4.8).
+            AlbumType.VIRTUAL, AlbumType.SMART -> null
         }
     }
 
@@ -139,6 +142,7 @@ internal class PastePlanner(private val files: FileOpsDao) {
     private suspend fun folderTree(album: AlbumEntity): List<Folder> = when (album.type) {
         AlbumType.DEVICE_FOLDER -> phoneTree(album)
         AlbumType.DRIVE_FOLDER -> driveTree(album)
+        AlbumType.VIRTUAL, AlbumType.SMART -> emptyList()
     }
 
     private suspend fun phoneTree(album: AlbumEntity): List<Folder> {

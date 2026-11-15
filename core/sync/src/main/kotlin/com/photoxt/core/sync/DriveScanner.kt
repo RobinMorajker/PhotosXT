@@ -13,6 +13,7 @@ import com.photoxt.core.drive.DriveHttp
 import com.photoxt.core.drive.FOLDER_MIME
 import com.photoxt.core.drive.ImageMetadata
 import com.photoxt.core.drive.LIST_FIELDS
+import com.photoxt.core.drive.TAKEN_AT_PROPERTY
 import com.photoxt.core.drive.driveLiteral
 import com.photoxt.core.drive.driveStatus
 import com.photoxt.core.model.AlbumType
@@ -20,6 +21,7 @@ import com.photoxt.core.model.DateGrouping
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.model.naturalKey
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
@@ -79,7 +81,9 @@ class DriveScanner @Inject constructor(
             return ScanResult(0, 0, 0, unavailable = true)
         }
         val walk = Walk(tracked, zone)
-        val pending = ArrayDeque(listOf(walk.folder(root.id, root.name, parent = null)))
+        val pending = ArrayDeque(
+            listOf(walk.folder(root.id, root.name, parent = null, rfc3339(root.createdTime)))
+        )
         while (pending.isNotEmpty()) {
             val folder = pending.removeFirst()
             var pageToken: String? = null
@@ -103,7 +107,9 @@ class DriveScanner @Inject constructor(
 
     /** The tracked folder itself; null when Drive no longer has it (binned, gone, unshared). */
     private suspend fun rootOf(account: DriveAccount, tracked: TrackedFolderEntity): DriveFile? {
-        val root = runCatching { http.api.get(account, tracked.driveFolderId, "id,name,trashed") }
+        val root = runCatching {
+            http.api.get(account, tracked.driveFolderId, "id,name,trashed,createdTime")
+        }
             .getOrElse { error ->
                 if (error.driveStatus == HTTP_NOT_FOUND) return null
                 throw error
@@ -130,7 +136,7 @@ class DriveScanner @Inject constructor(
     /** Writes one page under [folder]; returns the subfolders still to walk. */
     private suspend fun write(walk: Walk, folder: Folder, files: List<DriveFile>): List<Folder> {
         val subfolders = files.filter { it.isFolder && it.id !in walk.folders }
-            .map { walk.folder(it.id, it.name, parent = folder) }
+            .map { walk.folder(it.id, it.name, parent = folder, rfc3339(it.createdTime)) }
         val media = files.filter { it.isMedia && !it.trashed }
             .mapNotNull { walk.item(it, folder) }
         database.withTransaction {
@@ -159,7 +165,13 @@ class DriveScanner @Inject constructor(
     }
 
     /** A folder met during the walk; [path] is from the tracked folder, ending in `/`. */
-    private class Folder(val id: String, val name: String, val parent: Folder?, val path: String)
+    private class Folder(
+        val id: String,
+        val name: String,
+        val parent: Folder?,
+        val path: String,
+        val createdAt: Long?
+    )
 
     /** One scan's bookkeeping: what it has seen, and how folders map to albums. */
     private class Walk(val tracked: TrackedFolderEntity, val zone: ZoneId) {
@@ -168,9 +180,9 @@ class DriveScanner @Inject constructor(
         val media = HashSet<String>()
         private val accountId = tracked.accountId
 
-        fun folder(id: String, name: String, parent: Folder?): Folder {
+        fun folder(id: String, name: String, parent: Folder?, createdAt: Long?): Folder {
             folders += id
-            return Folder(id, name, parent, (parent?.path ?: "") + "$name/")
+            return Folder(id, name, parent, (parent?.path ?: "") + "$name/", createdAt)
         }
 
         /** The album of the folder's items: its own, or the tracked folder's when merged. */
@@ -190,7 +202,8 @@ class DriveScanner @Inject constructor(
                 title = folder.name,
                 accountId = accountId,
                 parentId = folder.parent?.let(::albumOf),
-                rootId = tracked.albumId
+                rootId = tracked.albumId,
+                createdAt = folder.createdAt
             )
         }
 
@@ -223,6 +236,9 @@ internal fun DriveFile.toMedia(
     val video = videoMediaMetadata
     val modified = rfc3339(modifiedTime)
     val takenAt = captureTime(zone)
+    // Date added (spec §4.2): when the file reached Drive.
+    val addedAt = rfc3339(createdTime) ?: modified ?: takenAt
+    val modifiedAt = modified ?: takenAt
     return MediaEntity(
         id = driveMediaId(accountId, id),
         source = SourceType.DRIVE,
@@ -238,7 +254,7 @@ internal fun DriveFile.toMedia(
         rotation = Math.floorMod((image?.rotation ?: 0) * QUARTER_TURN, FULL_TURN),
         durationMs = video?.durationMillis?.toLongOrNull(),
         takenAt = takenAt,
-        modifiedAt = modified ?: takenAt,
+        modifiedAt = modifiedAt,
         dayKey = DateGrouping.DAY.keyOf(takenAt, zone),
         monthKey = DateGrouping.MONTH.keyOf(takenAt, zone),
         favorite = starred,
@@ -250,16 +266,25 @@ internal fun DriveFile.toMedia(
         thumbnailLink = thumbnailLink?.takeIf { hasThumbnail },
         lat = image?.location?.latitude,
         lng = image?.location?.longitude,
-        camera = image?.camera()
+        camera = image?.camera(),
+        addedAt = addedAt,
+        addedDayKey = DateGrouping.DAY.keyOf(addedAt, zone),
+        addedMonthKey = DateGrouping.MONTH.keyOf(addedAt, zone),
+        modifiedDayKey = DateGrouping.DAY.keyOf(modifiedAt, zone),
+        modifiedMonthKey = DateGrouping.MONTH.keyOf(modifiedAt, zone),
+        nameKey = naturalKey(name)
     )
 }
 
 /**
- * When a file was taken: its EXIF capture time; else when it was last changed, which uploaders
- * keep from the original; else when it reached Drive.
+ * When a file was taken: its EXIF capture time; else the one PhotoXT gave its own upload; else
+ * when it was last changed, which uploaders keep from the original; else when it reached Drive.
  */
-private fun DriveFile.captureTime(zone: ZoneId): Long =
-    exifTime(imageMediaMetadata?.time, zone) ?: rfc3339(modifiedTime) ?: rfc3339(createdTime) ?: 0L
+private fun DriveFile.captureTime(zone: ZoneId): Long = exifTime(imageMediaMetadata?.time, zone)
+    ?: appProperties[TAKEN_AT_PROPERTY]?.toLongOrNull()?.takeIf { it > 0 }
+    ?: rfc3339(modifiedTime)
+    ?: rfc3339(createdTime)
+    ?: 0L
 
 private fun ImageMetadata.camera(): String? =
     listOfNotNull(cameraMake, cameraModel).joinToString(" ").ifBlank { null }
@@ -269,7 +294,7 @@ private const val QUARTER_TURN = 90
 private const val FULL_TURN = 360
 private val EXIF_TIME = DateTimeFormatter.ofPattern("yyyy:MM:dd HH:mm:ss")
 
-private fun rfc3339(value: String?): Long? =
+internal fun rfc3339(value: String?): Long? =
     value?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
 
 /** An EXIF `yyyy:MM:dd HH:mm:ss` time, read in [zone] (EXIF has no time zone). */

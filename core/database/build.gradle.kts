@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.photoxt.android.library)
     alias(libs.plugins.photoxt.android.hilt)
     alias(libs.plugins.room)
+    // Settings sync (spec §4.8) writes the user's own tables as JSON.
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {

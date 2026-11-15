@@ -71,15 +71,17 @@ interface DeviceStore {
 
     fun rename(uri: String, name: String)
 
-    fun trash(uri: String)
-
-    fun restore(uri: String)
+    /** Moves [uri] to MediaStore's trash, or takes it back out. */
+    fun setTrashed(uri: String, trashed: Boolean)
 
     /** Deletes [uri] for good. */
     fun delete(uri: String)
 
     /** Every photo and video in MediaStore's trash, newest first. */
     fun trashed(): List<DeviceFile>
+
+    /** Sets [uri]'s favorite flag (spec §4.8, favorites sync both ways). */
+    fun setFavorite(uri: String, favorite: Boolean)
 
     /**
      * The bucket id MediaStore gives the folder [path] of [volume] once it holds an item, so a
@@ -165,15 +167,15 @@ class MediaStoreDevice @Inject constructor(@param:ApplicationContext private val
     override fun rename(uri: String, name: String) =
         update(uri, ContentValues().apply { put(MediaColumns.DISPLAY_NAME, name) })
 
-    override fun trash(uri: String) =
-        update(uri, ContentValues().apply { put(MediaColumns.IS_TRASHED, 1) })
-
-    override fun restore(uri: String) =
-        update(uri, ContentValues().apply { put(MediaColumns.IS_TRASHED, 0) })
+    override fun setTrashed(uri: String, trashed: Boolean) =
+        update(uri, ContentValues().apply { put(MediaColumns.IS_TRASHED, if (trashed) 1 else 0) })
 
     override fun delete(uri: String) {
         resolver.delete(uri.toUri(), Bundle().includeAll())
     }
+
+    override fun setFavorite(uri: String, favorite: Boolean) =
+        update(uri, ContentValues().apply { put(MediaColumns.IS_FAVORITE, if (favorite) 1 else 0) })
 
     override fun trashed(): List<DeviceFile> = MediaStore.getExternalVolumeNames(context).flatMap {
         val args = Bundle().apply {

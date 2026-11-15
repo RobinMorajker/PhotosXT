@@ -69,6 +69,45 @@
         <item quantity="one">%1$,d item on the clipboard. Open an album to paste.</item>
         <item quantity="other">%1$,d items on the clipboard. Open an album to paste.</item>
     </plurals>
+    <!-- Organising (spec §4.2, §4.8). -->
+    <string name="action_sort">Sort</string>
+    <string name="action_edit_order">Edit order</string>
+    <string name="action_done">Done</string>
+    <string name="action_back">Back</string>
+    <string name="editing_order_title">Drag to reorder</string>
+    <string name="action_rename">Rename</string>
+    <string name="new_kind_folder">Folder</string>
+    <string name="new_kind_folder_body">A folder on this phone or in Google Drive</string>
+    <string name="new_kind_virtual">Album</string>
+    <string name="new_kind_virtual_body">Photos and videos from anywhere; nothing is moved</string>
+    <string name="new_kind_smart">Smart album</string>
+    <string name="new_kind_smart_body">Everything that matches a rule, kept up to date</string>
+    <string name="action_pin_album">Pin album</string>
+    <string name="action_unpin_album">Unpin album</string>
+    <string name="action_move_up">Move up</string>
+    <string name="action_move_down">Move down</string>
+    <string name="action_move_to_group">Move to group</string>
+    <string name="action_remove_from_group">Remove from group</string>
+    <string name="action_add_to_home_screen">Add to home screen</string>
+    <string name="action_hide_from_pictures">Hide from Pictures</string>
+    <string name="action_hide_album">Hide album</string>
+    <string name="action_rename_album">Rename album</string>
+    <string name="action_delete_album">Delete album</string>
+    <string name="action_rename_group">Rename group</string>
+    <string name="action_ungroup">Ungroup</string>
+    <string name="move_to_group_title">Move to group</string>
+    <string name="new_group">New group</string>
+    <string name="delete_own_album_title">Delete this album?</string>
+    <string name="delete_own_album_body">Only the album goes. Its photos and videos stay where they are.</string>
+    <string name="shortcut_unsupported">This home screen can\'t add shortcuts.</string>
+    <string name="virtual_badge">Album</string>
+    <string name="smart_badge">Smart album</string>
+    <string name="group_badge">Group</string>
+    <string name="pinned_badge">Pinned</string>
+    <plurals name="group_album_count">
+        <item quantity="one">%1$,d album</item>
+        <item quantity="other">%1$,d albums</item>
+    </plurals>
     <plurals name="album_item_count">
         <item quantity="one">%1$,d item</item>
         <item quantity="other">%1$,d items</item>

@@ -87,6 +87,28 @@ internal fun CancelSelectionButton(onClick: () -> Unit) {
     }
 }
 
+/** Opens the Sort sheet (spec §4.2). */
+@Composable
+internal fun SortButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            painter = painterResource(DesignR.drawable.ic_sort),
+            contentDescription = stringResource(R.string.action_sort)
+        )
+    }
+}
+
+/** Ends Custom order's *Edit order*. */
+@Composable
+internal fun DoneButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        Icon(
+            painter = painterResource(DesignR.drawable.ic_check),
+            contentDescription = stringResource(R.string.action_done)
+        )
+    }
+}
+
 @Composable
 internal fun BackButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) {

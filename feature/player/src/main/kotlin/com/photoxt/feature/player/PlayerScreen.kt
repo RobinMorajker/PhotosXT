@@ -36,6 +36,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Constraints
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -47,6 +48,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaSession
 import androidx.media3.ui.compose.ContentFrame
 import androidx.media3.ui.compose.state.rememberPresentationState
+import com.photoxt.core.ui.BookmarkDialog
 import com.photoxt.core.ui.ImmersiveEffect
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
@@ -57,8 +59,16 @@ import kotlinx.coroutines.delay
  * subtitles, audio tracks and picture-in-picture. It resumes where the video was left.
  */
 @Composable
-fun PlayerScreen(mediaId: String, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val viewModel = hiltViewModel<PlayerViewModel, PlayerViewModel.Factory> { it.create(mediaId) }
+fun PlayerScreen(
+    mediaId: String,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    albumId: String? = null,
+    startAt: Long? = null
+) {
+    val viewModel = hiltViewModel<PlayerViewModel, PlayerViewModel.Factory> {
+        it.create(mediaId, albumId, startAt)
+    }
     val player = viewModel.player
     val inPip = rememberInPictureInPicture()
     val playing = rememberIsPlaying(player)
@@ -101,6 +111,9 @@ internal class PlayerUi {
     var rotationLocked by mutableStateOf(false)
     var videoBounds by mutableStateOf<Rect?>(null)
     val gestures = PlayerGestureState()
+
+    /** The video time being bookmarked, while its dialog is open (spec §4.8). */
+    var bookmarkAt by mutableStateOf<Long?>(null)
 }
 
 /** Gestures, their feedback, the controls and the resume note, all hidden in picture-in-picture. */
@@ -137,12 +150,25 @@ private fun BoxScope.PlayerOverlay(
                 onBack = onClose,
                 onAspect = { ui.aspect = it },
                 onRotationLock = { ui.rotationLocked = it },
-                onPictureInPicture = enterPip
+                onPictureInPicture = enterPip,
+                onBookmark = { ui.bookmarkAt = player.currentPosition }
             )
         )
     }
     resumedFrom?.let {
         ResumedNote(it, viewModel::startOver, Modifier.align(Alignment.BottomCenter))
+    }
+    ui.bookmarkAt?.let { at ->
+        val collections by viewModel.collections.collectAsStateWithLifecycle(emptyList())
+        BookmarkDialog(
+            collections = collections,
+            defaultName = stringResource(R.string.player_bookmark_collection),
+            onSave = { collection, newCollection, note ->
+                viewModel.bookmarkMoment(at, collection, newCollection, note)
+            },
+            onDismiss = { ui.bookmarkAt = null },
+            moment = formatTime(at)
+        )
     }
 }
 

@@ -287,6 +287,10 @@ private val TransferOp.label: Int
         TransferOp.CONVERT -> R.string.transfer_op_convert
         TransferOp.MKDIR -> R.string.transfer_op_mkdir
         TransferOp.REMOVE_FROM_ALBUM -> R.string.transfer_op_remove
+        TransferOp.FAVORITE -> R.string.transfer_op_favorite
+        TransferOp.UNFAVORITE -> R.string.transfer_op_unfavorite
+        TransferOp.VAULT -> R.string.transfer_op_vault
+        TransferOp.UNVAULT -> R.string.transfer_op_unvault
     }
 
 private val TransferOp.icon: Int
@@ -305,4 +309,12 @@ private val TransferOp.icon: Int
         TransferOp.CONVERT -> DesignR.drawable.ic_swap_vert
 
         TransferOp.MKDIR -> DesignR.drawable.ic_create_new_folder
+
+        TransferOp.FAVORITE -> DesignR.drawable.ic_favorite_filled
+
+        TransferOp.UNFAVORITE -> DesignR.drawable.ic_favorite
+
+        TransferOp.VAULT -> DesignR.drawable.ic_lock
+
+        TransferOp.UNVAULT -> DesignR.drawable.ic_lock_open
     }

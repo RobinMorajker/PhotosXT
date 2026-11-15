@@ -176,4 +176,8 @@ internal object DriveModule {
     @Provides
     @Singleton
     fun driveUploads(http: DriveHttp): DriveUploads = DriveUploads(http)
+
+    @Provides
+    @Singleton
+    fun driveAppData(http: DriveHttp): DriveAppData = DriveAppData(http)
 }

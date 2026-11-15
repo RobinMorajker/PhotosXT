@@ -7,6 +7,7 @@ import androidx.room.DeleteColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.AutoMigrationSpec
+import androidx.sqlite.db.SupportSQLiteDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -33,17 +34,29 @@ import javax.inject.Singleton
         DriveOrphanEntity::class,
         TransferBatchEntity::class,
         TransferJobEntity::class,
-        ClipboardEntity::class
+        ClipboardEntity::class,
+        AlbumPrefsEntity::class,
+        AlbumGroupEntity::class,
+        AlbumItemEntity::class,
+        ItemOrderEntity::class,
+        PinEntity::class,
+        BookmarkCollectionEntity::class,
+        BookmarkEntity::class,
+        HistoryEntity::class,
+        HiddenItemEntity::class
     ],
-    version = 5,
+    version = 6,
     // 2 (Phase 2): video resume points. 3 (Phase 3): Google accounts and Drive albums.
     // 4 (Phase 4): offline pins, orphans and albums kept offline.
     // 5 (Phase 5): the transfer queue and the clipboard.
+    // 6 (Phase 6): sort keys and dates, album options, groups, virtual and smart albums, pins,
+    // bookmarks, history and hidden items; resume points lose their foreign key.
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4, spec = Version3To4::class),
-        AutoMigration(from = 4, to = 5)
+        AutoMigration(from = 4, to = 5),
+        AutoMigration(from = 5, to = 6, spec = Version5To6::class)
     ]
 )
 abstract class PxtDatabase : RoomDatabase() {
@@ -62,11 +75,36 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun transferDao(): TransferDao
 
     abstract fun fileOpsDao(): FileOpsDao
+
+    abstract fun albumPrefsDao(): AlbumPrefsDao
+
+    abstract fun virtualAlbumDao(): VirtualAlbumDao
+
+    abstract fun pinDao(): PinDao
+
+    abstract fun bookmarkDao(): BookmarkDao
+
+    abstract fun historyDao(): HistoryDao
+
+    abstract fun hiddenDao(): HiddenDao
+
+    abstract fun backupDao(): BackupDao
 }
 
 /** Pins moved from a never-set `drive_cache` column to the `offline_pin` table. */
 @DeleteColumn(tableName = "drive_cache", columnName = "offlinePinned")
 class Version3To4 : AutoMigrationSpec
+
+/**
+ * Date added, the other date keys and name keys (spec §4.2) are new columns: every phone volume
+ * is indexed again in full and every Drive folder scanned again, which fills them.
+ */
+class Version5To6 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM media_store_cursor")
+        db.execSQL("UPDATE tracked_folder SET state = 'SCANNING' WHERE state = 'READY'")
+    }
+}
 
 @Module
 @InstallIn(SingletonComponent::class)

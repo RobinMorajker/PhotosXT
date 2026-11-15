@@ -123,13 +123,18 @@ class TimelineQueryTest {
         assertEquals("external_primary:camera/", media.folderOf("c"))
     }
 
+    /**
+     * A resume point outlives its item (settings sync restores it before the item is indexed
+     * again, spec §4.8), but a gone item is never offered in *Continue watching*.
+     */
     @Test
-    fun aResumePointGoesWithItsItem() = runTest {
+    fun aResumePointShowsOnlyWhileItsItemIsThere() = runTest {
         val playback = database.playbackDao()
-        playback.save(PlaybackPositionEntity("b", positionMs = 1_500, durationMs = 5_000, 1))
-        assertEquals(1_500L, playback.position("b")?.positionMs)
+        playback.save(PlaybackPositionEntity("b", positionMs = 4_000, durationMs = 60_000, 1))
+        assertEquals(listOf("b"), playback.continueWatching(10).first().map { it.id })
         database.mediaIndexDao().deleteMedia(listOf("b"))
-        assertEquals(null, playback.position("b"))
+        assertEquals(4_000L, playback.position("b")?.positionMs)
+        assertEquals(emptyList<String>(), playback.continueWatching(10).first().map { it.id })
     }
 
     /** Header rows as their date ("2026-11-04", "2026-11", "2026"), item rows as their id. */

@@ -3,6 +3,7 @@ package com.photoxt.feature.albums
 import android.app.Activity
 import android.content.Intent
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.photoxt.core.auth.Authorization
@@ -17,14 +18,21 @@ import com.photoxt.core.media.DeviceMediaSync
 import com.photoxt.core.media.MediaAccessMonitor
 import com.photoxt.core.media.MediaRef
 import com.photoxt.core.media.thumbnailOf
+import com.photoxt.core.model.AlbumSort
+import com.photoxt.core.model.AlbumSortField
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.SourceType
+import com.photoxt.core.model.TargetType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.organize.AlbumOptions
+import com.photoxt.core.organize.Pins
+import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.sync.DriveSync
 import com.photoxt.core.transfer.Clip
 import com.photoxt.core.transfer.NewAlbumPlace
 import com.photoxt.core.transfer.Transfers
+import com.photoxt.core.ui.NamedChoice
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,7 +69,16 @@ data class AlbumTile(
     val count: Int,
     val cover: Any?,
     /** Null for a device album. */
-    val drive: DriveStatus? = null
+    val drive: DriveStatus? = null,
+    val kind: TileKind = TileKind.FOLDER,
+    /** Pinned to the top of Albums (spec §4.8). */
+    val pinned: Boolean = false,
+    val hideFromPictures: Boolean = false,
+    val groupId: String? = null,
+    /** The name it shows and sorts by; empty until placed. */
+    val name: String = "",
+    /** A group's albums. */
+    val members: Int = 0
 )
 
 @Immutable
@@ -72,7 +89,11 @@ data class AlbumsUiState(
     /** Pull-to-refresh is running. */
     val refreshing: Boolean = false,
     /** What the clipboard holds (spec §4.7); clipped albums can be pasted at the top. */
-    val clip: Clip? = null
+    val clip: Clip? = null,
+    val sort: AlbumSort = AlbumSort(),
+    /** Custom order's *Edit order* (spec §4.2): dragging moves tiles. */
+    val editingOrder: Boolean = false,
+    val groups: List<NamedChoice> = emptyList()
 ) {
     /** Accounts whose Drive grant lapsed: the "Reconnect Google Drive" banner. */
     val reconnect: List<AccountEntity> get() = accounts.filter { it.needsConsent }
@@ -86,29 +107,118 @@ class AlbumsViewModel @Inject constructor(
     private val googleAccounts: GoogleAccounts,
     private val driveAuth: DriveAuth,
     private val driveSync: DriveSync,
-    private val transfers: Transfers
+    private val transfers: Transfers,
+    private val settingsSync: SettingsSync,
+    private val tiles: AlbumTiles,
+    private val pins: Pins,
+    private val options: AlbumOptions,
+    private val savedState: SavedStateHandle,
+    organizeParts: AlbumsOrganizeParts
 ) : ViewModel() {
     val permissions: Array<String> get() = mediaAccess.permissions
 
     private val refreshing = MutableStateFlow(false)
+    private val editingOrder = savedState.getStateFlow(KEY_EDITING, false)
+
+    /** Pinning, hiding, groups, own albums and Custom order of albums (spec §4.2, §4.8). */
+    val organize: AlbumsOrganize = organizeParts.forScreen(viewModelScope)
+
+    init {
+        // Camera and Screenshots are pinned the first time they appear (spec §4.2).
+        viewModelScope.launch {
+            albumDao.albums().collect { albums -> pins.autoPin(tiles.autoPinned(albums)) }
+        }
+    }
 
     val uiState: StateFlow<AlbumsUiState> =
         combine(
             combine(
                 mediaAccess.state,
-                albumDao.albums(),
+                tiles.tiles(groupId = null),
                 googleAccounts.accounts,
-                driveSync.online,
                 refreshing
-            ) { access, albums, accounts, online, refreshing ->
-                AlbumsUiState(access, arrange(albums, accounts, online), accounts, refreshing)
+            ) { access, albums, accounts, refreshing ->
+                AlbumsUiState(access, albums, accounts, refreshing)
             },
-            transfers.clipboard
-        ) { state, clip -> state.copy(clip = clip) }.stateIn(
+            transfers.clipboard,
+            options.albumsSort,
+            editingOrder,
+            options.groups
+        ) { state, clip, sort, editing, groups ->
+            state.copy(
+                clip = clip,
+                sort = sort,
+                editingOrder = editing,
+                groups = groups.map { NamedChoice(it.id, it.name) }
+            )
+        }.stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
             AlbumsUiState(mediaAccess.state.value)
         )
+
+    /** Account [accountId] was just added: settings sync may restore its albums (spec §4.8). */
+    fun accountAdded(accountId: String) {
+        viewModelScope.launch { settingsSync.accountAdded(accountId) }
+    }
+
+    fun setSort(sort: AlbumSort) {
+        viewModelScope.launch {
+            // Custom order starts from the order on screen (spec §4.2).
+            if (sort.field == AlbumSortField.CUSTOM && uiState.value.sort.field != sort.field) {
+                options.setOrder(
+                    uiState.value.albums.orEmpty().filterNot {
+                        it.pinned
+                    }.map { it.id }
+                )
+            }
+            options.setAlbumsSort(sort)
+        }
+    }
+
+    /** Custom order's *Edit order*: dragging an album moves it. */
+    fun setEditingOrder(on: Boolean) {
+        savedState[KEY_EDITING] = on
+    }
+
+    /** *Move up* or *Move down* (spec §4.2, for TalkBack and switch access). */
+    fun move(albumId: String, up: Boolean) {
+        val tiles = uiState.value.albums.orEmpty()
+        val section = sectionOf(tiles, albumId) ?: return
+        val index = section.indexOf(albumId)
+        val other = section.getOrNull(if (up) index - 1 else index + 1) ?: return
+        reorder(albumId, other, after = !up)
+    }
+
+    /** Drops [movedId] before or [after] [targetId]: among pins, or in Custom order. */
+    fun reorder(movedId: String, targetId: String, after: Boolean) {
+        val tiles = uiState.value.albums.orEmpty()
+        val section = sectionOf(tiles, movedId) ?: return
+        if (targetId !in section || movedId == targetId) return
+        val rest = section - movedId
+        val at = rest.indexOf(targetId) + if (after) 1 else 0
+        val order = rest.subList(0, at) + movedId + rest.subList(at, rest.size)
+        viewModelScope.launch {
+            if (tiles.first { it.id == movedId }.pinned) {
+                pins.reorder(TargetType.ALBUM, order)
+            } else {
+                options.setOrder(order)
+            }
+        }
+    }
+
+    /** The ids [albumId] can move among: the pins, or the rest in Custom order. */
+    private fun sectionOf(tiles: List<AlbumTile>, albumId: String): List<String>? {
+        val tile = tiles.firstOrNull { it.id == albumId } ?: return null
+        return when {
+            tile.pinned -> tiles.filter { it.pinned }.map { it.id }
+
+            uiState.value.sort.field == AlbumSortField.CUSTOM ->
+                tiles.filterNot { it.pinned }.map { it.id }
+
+            else -> null
+        }
+    }
 
     /** After a permission answer: re-read access and index whatever became visible. */
     fun refreshAccess() = deviceMediaSync.refresh()
@@ -165,39 +275,8 @@ class AlbumsViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val KEY_EDITING = "editingOrder"
     }
-}
-
-/** Camera, then Screenshots, then every other album with the newest first. */
-internal fun arrange(
-    albums: List<AlbumSummary>,
-    accounts: List<AccountEntity> = emptyList(),
-    online: Boolean = true
-): List<AlbumTile> {
-    val needsConsent = accounts.filter { it.needsConsent }.mapTo(HashSet()) { it.id }
-    return albums
-        .map { album ->
-            val drive = album.type == AlbumType.DRIVE_FOLDER
-            AlbumTile(
-                id = album.id,
-                title = album.title,
-                folder = if (drive) {
-                    DeviceFolder.OTHER
-                } else {
-                    recogniseFolder(album.sourceRef.substringAfter(':'))
-                },
-                count = album.count,
-                cover = album.cover(),
-                drive = if (drive) album.status(album.accountId in needsConsent, online) else null
-            )
-        }
-        .sortedBy { tile ->
-            when (tile.folder) {
-                DeviceFolder.CAMERA -> 0
-                DeviceFolder.SCREENSHOTS -> 1
-                else -> 2
-            }
-        }
 }
 
 /** The album's newest item as a thumbnail model, from whichever source it is in. */
@@ -217,7 +296,7 @@ fun AlbumSummary.cover(): Any? {
     )
 }
 
-private fun AlbumSummary.status(needsConsent: Boolean, online: Boolean): DriveStatus = when {
+internal fun AlbumSummary.status(needsConsent: Boolean, online: Boolean): DriveStatus = when {
     needsConsent || state == TrackedFolderState.UNAVAILABLE -> DriveStatus.NEEDS_ATTENTION
     !online -> DriveStatus.OFFLINE
     state == TrackedFolderState.SCANNING -> DriveStatus.SYNCING

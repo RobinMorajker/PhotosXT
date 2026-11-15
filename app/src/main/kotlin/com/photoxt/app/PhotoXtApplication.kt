@@ -19,10 +19,15 @@ import com.photoxt.core.media.DriveOriginalKeyer
 import com.photoxt.core.media.DriveOriginals
 import com.photoxt.core.media.DriveThumbnailKeyer
 import com.photoxt.core.media.DriveThumbnails
+import com.photoxt.core.organize.History
+import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.sync.DriveSync
 import com.photoxt.core.transfer.DriveLinkThumbnailFetcher
 import com.photoxt.core.transfer.DriveLinkThumbnailKeyer
 import com.photoxt.core.transfer.TransferQueue
+import com.photoxt.core.vault.Vault
+import com.photoxt.core.vault.VaultImageFetcher
+import com.photoxt.core.vault.VaultImageKeyer
 import dagger.hilt.android.HiltAndroidApp
 import java.util.concurrent.Executors
 import javax.inject.Inject
@@ -50,6 +55,15 @@ class PhotoXtApplication :
     @Inject
     lateinit var driveHttp: DriveHttp
 
+    @Inject
+    lateinit var settingsSync: SettingsSync
+
+    @Inject
+    lateinit var history: History
+
+    @Inject
+    lateinit var vault: Vault
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) enableStrictMode()
@@ -57,6 +71,9 @@ class PhotoXtApplication :
         driveSync.start()
         // Resumes transfers a killed process left half done (spec §4.7).
         transferQueue.start()
+        // Settings sync and the history's auto-delete (spec §4.8, §4.9).
+        settingsSync.start()
+        history.start()
     }
 
     /**
@@ -91,6 +108,9 @@ class PhotoXtApplication :
                 // Binned Drive files in Trash (spec §4.7).
                 add(DriveLinkThumbnailKeyer())
                 add(DriveLinkThumbnailFetcher.Factory(driveHttp))
+                // The vault's photos, decrypted in memory (spec §4.8).
+                add(VaultImageKeyer())
+                add(VaultImageFetcher.Factory(vault))
                 // Animated GIF, WebP and HEIF in the viewer (spec §4.5); stills decode as before.
                 add(AnimatedImageDecoder.Factory())
             }

@@ -16,6 +16,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.net.toUri
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -341,6 +342,24 @@ class AppTransferEnvironment @Inject constructor(
 
     override suspend fun trackFolder(account: String, folderId: String, name: String) {
         sync.addFolder(account, folderId, name, driveId = null, merge = false)
+    }
+
+    override fun thumbnailJpeg(uri: String): ByteArray? = runCatching {
+        val bitmap = context.contentResolver.loadThumbnail(
+            uri.toUri(),
+            android.util.Size(VAULT_THUMB_PX, VAULT_THUMB_PX),
+            null
+        )
+        java.io.ByteArrayOutputStream().use { out ->
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, VAULT_THUMB_QUALITY, out)
+            bitmap.recycle()
+            out.toByteArray()
+        }
+    }.getOrNull()
+
+    private companion object {
+        const val VAULT_THUMB_PX = 512
+        const val VAULT_THUMB_QUALITY = 85
     }
 }
 

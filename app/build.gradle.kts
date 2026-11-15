@@ -44,6 +44,7 @@ dependencies {
     implementation(project(":core:designsystem"))
     implementation(project(":core:media"))
     implementation(project(":core:model"))
+    implementation(project(":core:organize"))
     implementation(project(":core:sync"))
     implementation(project(":core:transfer"))
     implementation(project(":core:ui"))

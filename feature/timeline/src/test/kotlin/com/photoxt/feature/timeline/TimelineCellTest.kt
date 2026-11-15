@@ -31,6 +31,9 @@ class TimelineCellTest {
         height = 3060,
         rotation = rotation,
         source = SourceType.DEVICE,
-        remoteVersion = null
+        remoteVersion = null,
+        name = "IMG_1.jpg",
+        bytes = 1,
+        groupTime = 1
     )
 }

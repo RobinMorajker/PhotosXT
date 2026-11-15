@@ -57,6 +57,7 @@ class Transfers @Inject constructor(
 ) {
     private val dao = database.transferDao()
     private val files = database.fileOpsDao()
+    private val virtualAlbums = database.virtualAlbumDao()
     private val planner = PastePlanner(files)
 
     val clipboard: Flow<Clip?> = dao.clipboard().map { it?.toClip() }
@@ -223,6 +224,9 @@ class Transfers @Inject constructor(
 
             AlbumType.DRIVE_FOLDER ->
                 NewAlbumPlace.Drive(checkNotNull(album.accountId), planner.driveFolderOf(album))
+
+            // PhotoXT's own albums are no folders: nothing can be made inside them.
+            AlbumType.VIRTUAL, AlbumType.SMART -> null
         }
     }
 
@@ -248,6 +252,12 @@ class Transfers @Inject constructor(
             }
 
             AlbumType.DEVICE_FOLDER -> queued(TransferOp.MOVE, newName, movedInto(album, newName))
+
+            // PhotoXT's own albums have only a name to change, at once (spec §4.8).
+            AlbumType.VIRTUAL, AlbumType.SMART -> {
+                virtualAlbums.retitle(albumId, newName)
+                null
+            }
         }
     }
 

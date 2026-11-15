@@ -150,6 +150,9 @@ internal class ViewerUi {
     var chrome by mutableStateOf(true)
     var details by mutableStateOf<ViewerItem?>(null)
     var motion by mutableStateOf<String?>(null)
+
+    /** The organising dialog open about this item (spec §4.8). */
+    var dialog by mutableStateOf<Pair<ViewerDialog, ViewerItem>?>(null)
 }
 
 /** Flies the tapped tile's photo into place, once the viewer knows its size. */
@@ -186,6 +189,13 @@ private fun ViewerBody(parts: ViewerParts, close: () -> Unit, navigation: Viewer
         ui.motion = null
         viewModel.prefetchAround(parts.pager.settledPage) { parts.items.peekOrNull(it) }
     }
+    // A page that settles is a view (spec §4.9), once the viewer has finished flying in.
+    val settled = parts.items.peekOrNull(parts.pager.settledPage)
+    LaunchedEffect(settled?.id, transition.phase) {
+        if (settled != null && transition.phase == ViewerTransition.Phase.SHOWN) {
+            viewModel.organize.viewed(settled)
+        }
+    }
     val current = parts.items.peekOrNull(parts.pager.currentPage)
     val traits = current?.let { viewModel.traitsOf(it).collectAsStateWithLifecycle().value }
     HdrWindowEffect(traits?.ultraHdr == true && !transition.flying)
@@ -202,6 +212,11 @@ private fun ViewerBody(parts: ViewerParts, close: () -> Unit, navigation: Viewer
         ViewerBars(parts, ui, current, traits, close, navigation)
     }
     ui.details?.let { item -> DetailsSheet(item, viewModel::details) { ui.details = null } }
+    ui.dialog?.let { (dialog, item) ->
+        ViewerDialogs(dialog, item, viewModel.organize, onOpen = { ui.dialog = it to item }) {
+            ui.dialog = null
+        }
+    }
 }
 
 @Composable
@@ -226,7 +241,8 @@ private fun ViewerBars(
         close = close,
         navigation = navigation,
         onDetails = { ui.details = it },
-        onMotion = { ui.motion = it }
+        onMotion = { ui.motion = it },
+        onDialog = { dialog, item -> ui.dialog = dialog to item }
     )
     Box(Modifier.fillMaxSize()) {
         ViewerTopBar(current, mode, zoomLock, actions, Modifier.align(Alignment.TopCenter))
@@ -371,7 +387,20 @@ internal data class ChromeActions(
     val offline: Boolean? = null,
     val onOffline: (Boolean) -> Unit = {},
     /** Moves the item to the trash (spec §4.7); the app offers Undo. */
-    val onDelete: () -> Unit = {}
+    val onDelete: () -> Unit = {},
+    val organize: ViewerOrganizeActions = ViewerOrganizeActions()
+)
+
+/** The viewer's organising actions (spec §4.8). */
+internal data class ViewerOrganizeActions(
+    val favorite: Boolean = false,
+    val onFavorite: (Boolean) -> Unit = {},
+    val onBookmark: () -> Unit = {},
+    val onAddToAlbum: () -> Unit = {},
+    val onHide: () -> Unit = {},
+    val onVault: () -> Unit = {},
+    /** Opened from an album whose cover can be set. */
+    val onSetCover: (() -> Unit)? = null
 )
 
 /** Where the viewer sits and its pages' reports, read by gestures and flights. */

@@ -39,7 +39,8 @@ class FakeDrive : Dispatcher() {
         var content: ByteArray,
         var trashed: Boolean = false,
         var md5: String? = md5(content),
-        var modifiedTime: String = MODIFIED_TIME
+        var modifiedTime: String = MODIFIED_TIME,
+        var starred: Boolean = false
     )
 
     val server = MockWebServer().also { it.dispatcher = this }
@@ -256,6 +257,7 @@ class FakeDrive : Dispatcher() {
             }
             file.trashed = trashed.jsonPrimitive.boolean
         }
+        body["starred"]?.let { file.starred = it.jsonPrimitive.boolean }
         val renamed = body.string("name")?.also { file.name = it } != null
         // Drive dates a rename now, unless the call sets the time itself.
         file.modifiedTime = body.string("modifiedTime")
@@ -327,6 +329,7 @@ class FakeDrive : Dispatcher() {
             put("mimeType", JsonPrimitive(mime))
             put("parents", JsonArray(parents.map(::JsonPrimitive)))
             put("trashed", JsonPrimitive(trashed))
+            put("starred", JsonPrimitive(starred))
             put("version", JsonPrimitive("1"))
             put("modifiedTime", JsonPrimitive(modifiedTime))
             put("ownedByMe", JsonPrimitive(id !in notOwned))
