@@ -198,9 +198,9 @@ class TimelineViewModel @AssistedInject constructor(
             TimelineQuery(filter, grouping, albumId, sort, list, rule)
         }.distinctUntilChanged()
 
-    /** When a sort was last picked, to log how long its first rows took (debug builds). */
+    /** The sort last picked and when, to log how long its own first rows took (debug builds). */
     @Volatile
-    private var sortPickedAt = 0L
+    private var sortPicked: Pair<ItemSort, Long>? = null
 
     val rows: Flow<PagingData<GridCell>> = query
         .flatMapLatest { query ->
@@ -315,7 +315,7 @@ class TimelineViewModel @AssistedInject constructor(
      * order on screen.
      */
     fun setSort(value: ItemSort) {
-        sortPickedAt = SystemClock.elapsedRealtime()
+        sortPicked = value to SystemClock.elapsedRealtime()
         viewModelScope.launch {
             val current = sort.first()
             when {
@@ -334,13 +334,13 @@ class TimelineViewModel @AssistedInject constructor(
     }
 
     private fun logSortSwitch(sort: ItemSort) {
-        val picked = sortPickedAt
-        if (picked == 0L) return
-        sortPickedAt = 0L
-        val way = if (sort.descending) "down" else "up"
+        // Saving the pick reloads the old sort too (its album's prefs changed): that isn't it.
+        val (picked, at) = sortPicked?.takeIf { it.first == sort } ?: return
+        sortPicked = null
+        val way = if (picked.descending) "down" else "up"
         PxtLog.d(
             TAG,
-            "Sort ${sort.field} $way: first rows in ${SystemClock.elapsedRealtime() - picked} ms"
+            "Sort ${picked.field} $way: first rows in ${SystemClock.elapsedRealtime() - at} ms"
         )
     }
 

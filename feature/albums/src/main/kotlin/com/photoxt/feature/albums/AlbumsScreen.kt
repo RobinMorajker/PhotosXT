@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -42,6 +43,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +73,7 @@ import com.photoxt.core.auth.SignInResult
 import com.photoxt.core.database.AccountEntity
 import com.photoxt.core.designsystem.PxtCollapsingHeader
 import com.photoxt.core.designsystem.R as DesignR
+import com.photoxt.core.model.AlbumSort
 import com.photoxt.core.model.AlbumSortField
 import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.organize.AlbumOptions
@@ -450,6 +453,7 @@ private fun AlbumsColumn(
     )
     val gridState = rememberLazyGridState()
     val drag = remember { TileDrag() }
+    KeepAtTop(gridState, state.albums?.firstOrNull()?.id, state.sort)
     Column(Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         AlbumsHeader(title, state, scrollBehavior, order) {
             HeaderActions(onNewAlbum, onAddDriveFolder, onAccounts, order, state)
@@ -527,6 +531,25 @@ private fun BoxScope.TileBadge(@DrawableRes icon: Int, alignment: Alignment, pin
             .size(16.dp)
     )
 }
+
+/**
+ * Back to the top for a new sort, and kept there when albums arrive above the first one, as when
+ * Camera and Screenshots are pinned on their first appearance: the grid would otherwise keep its
+ * old first album in view, with the pins out of sight above it (seen on the A15, 2026-11-15).
+ */
+@Composable
+private fun KeepAtTop(grid: LazyGridState, firstId: String?, sort: AlbumSort) {
+    val shown = remember { ShownTop(firstId, sort) }
+    // Before the next measure, which would otherwise keep the old first album in place.
+    SideEffect {
+        val atTop = grid.firstVisibleItemIndex == 0 && grid.firstVisibleItemScrollOffset == 0
+        if (sort != shown.sort || (firstId != shown.firstId && atTop)) grid.requestScrollToItem(0)
+        shown.firstId = firstId
+        shown.sort = sort
+    }
+}
+
+private class ShownTop(var firstId: String?, var sort: AlbumSort)
 
 /** The title, or *Edit order* with Done; [actions] when not editing. */
 @OptIn(ExperimentalMaterial3Api::class)
