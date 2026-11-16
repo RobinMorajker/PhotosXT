@@ -232,7 +232,8 @@
         <item quantity="other">Every %1$d hours</item>
     </plurals>
     <string name="settings_drive_mobile">Background sync on mobile data</string>
-    <string name="settings_drive_mobile_body">Off: Drive albums sync in the background on Wi-Fi only</string>
+    <string name="settings_drive_mobile_on">On: Drive albums also sync in the background on mobile data</string>
+    <string name="settings_drive_mobile_off">Off: Drive albums sync in the background on Wi-Fi only</string>
     <string name="settings_sync">Settings sync</string>
     <string name="settings_sync_switch">Keep a copy in Google Drive</string>
     <string name="settings_sync_body">Albums, sort choices, pins, bookmarks, hidden items, history and settings, in PhotoXT’s own hidden folder in your Drive. A reinstall brings them back.</string>

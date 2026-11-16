@@ -39,10 +39,6 @@ interface AlbumPrefsDao {
     @Upsert
     suspend fun savePrefs(prefs: List<AlbumPrefsEntity>)
 
-    /** *Apply to all albums* (spec §4.2, Scope): every album takes the default sort again. */
-    @Query("UPDATE album_prefs SET sort = NULL")
-    suspend fun clearSorts()
-
     @Query("SELECT * FROM album_group ORDER BY createdAt")
     fun groups(): Flow<List<AlbumGroupEntity>>
 
@@ -69,7 +65,10 @@ interface AlbumPrefsDao {
 /** Virtual and smart albums (spec §4.8): their rows, members and Custom order. */
 @Dao
 interface VirtualAlbumDao {
-    /** Each virtual album with its item count and newest item as the cover (or its own). */
+    /**
+     * Each virtual album with its item count and newest item as the cover (or its own). Hidden
+     * items count for nothing and are never the cover (spec §4.8).
+     */
     @Query(
         """
         SELECT s.*, cv.contentUri AS coverUri, COALESCE(cv.modifiedAt, 0) AS coverModifiedAt,
@@ -82,12 +81,16 @@ interface VirtualAlbumDao {
                 COALESCE(
                     (SELECT pr.coverId FROM album_prefs pr JOIN album_item ci
                         ON ci.albumId = pr.albumId AND ci.mediaId = pr.coverId
-                        WHERE pr.albumId = a.id),
+                        WHERE pr.albumId = a.id
+                            AND pr.coverId NOT IN (SELECT mediaId FROM hidden_item)),
                     (SELECT c.id FROM album_item ai2 JOIN media c ON c.id = ai2.mediaId
-                        WHERE ai2.albumId = a.id ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
+                        WHERE ai2.albumId = a.id
+                            AND c.id NOT IN (SELECT mediaId FROM hidden_item)
+                        ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
                 ) AS coverId
             FROM album a LEFT JOIN album_item ai ON ai.albumId = a.id
                 LEFT JOIN media m ON m.id = ai.mediaId
+                    AND m.id NOT IN (SELECT mediaId FROM hidden_item)
             WHERE a.type = 'VIRTUAL'
             GROUP BY a.id
         ) s
@@ -127,6 +130,13 @@ interface VirtualAlbumDao {
 
     @Query("SELECT * FROM item_order WHERE albumId = :albumId")
     suspend fun orderOf(albumId: String): List<ItemOrderEntity>
+
+    @Query("DELETE FROM item_order WHERE albumId = :albumId")
+    suspend fun clearOrder(albumId: String)
+
+    /** Whether album [albumId] has a Custom order yet. */
+    @Query("SELECT EXISTS(SELECT 1 FROM item_order WHERE albumId = :albumId)")
+    suspend fun hasOrder(albumId: String): Boolean
 
     @Upsert
     suspend fun saveOrder(order: List<ItemOrderEntity>)
@@ -172,12 +182,16 @@ interface PinDao {
     suspend fun itemPinsIn(albumId: String): List<PinEntity>
 }
 
-/** Bookmark collections and their bookmarks (spec §4.8). */
+/**
+ * Bookmark collections and their bookmarks (spec §4.8). Bookmarks of hidden items and albums stay
+ * out of every list until they are unhidden, as the items do everywhere outside Hidden.
+ */
 @Dao
 interface BookmarkDao {
     @Query(
         """
-        SELECT c.*, (SELECT COUNT(*) FROM bookmark b WHERE b.collectionId = c.id) AS count
+        SELECT c.*, (SELECT COUNT(*) FROM bookmark b WHERE b.collectionId = c.id
+            AND $NOT_OF_HIDDEN) AS count
         FROM bookmark_collection c ORDER BY c.position
         """
     )
@@ -204,7 +218,7 @@ interface BookmarkDao {
         FROM bookmark b
             LEFT JOIN media m ON b.targetType = 'ITEM' AND m.id = b.targetId
             LEFT JOIN album a ON b.targetType = 'ALBUM' AND a.id = b.targetId
-        WHERE b.collectionId = :collectionId
+        WHERE b.collectionId = :collectionId AND $NOT_OF_HIDDEN
         ORDER BY b.createdAt DESC
         """
     )
@@ -443,3 +457,9 @@ interface BackupDao {
     @Query("SELECT * FROM playback_position")
     suspend fun positions(): List<PlaybackPositionEntity>
 }
+
+/** A bookmark (`b`) whose item or album isn't hidden. */
+private const val NOT_OF_HIDDEN =
+    "NOT ((b.targetType = 'ITEM' AND b.targetId IN (SELECT mediaId FROM hidden_item)) OR " +
+        "(b.targetType = 'ALBUM' AND b.targetId IN " +
+        "(SELECT albumId FROM album_prefs WHERE hidden = 1)))"

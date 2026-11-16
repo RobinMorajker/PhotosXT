@@ -129,6 +129,16 @@ class SortTest {
     }
 
     @Test
+    fun customOrderStartsFromTheOrderOnScreenAndKeepsItsPlaces() = runTest {
+        val name = ItemSort(ItemSortField.NAME, descending = true)
+        database.seedCustomOrder(ALBUM, query(name))
+        assertEquals(ids(name), ids(ItemSort(ItemSortField.CUSTOM)))
+        // Started again from another sort, the items keep the places they have.
+        database.seedCustomOrder(ALBUM, query(ItemSort(ItemSortField.DATE_ADDED)))
+        assertEquals(ids(name), ids(ItemSort(ItemSortField.CUSTOM)))
+    }
+
+    @Test
     fun theGridTheViewerAndPositionsAgree() = runTest {
         for (field in ItemSortField.entries) {
             for (descending in listOf(false, true)) {

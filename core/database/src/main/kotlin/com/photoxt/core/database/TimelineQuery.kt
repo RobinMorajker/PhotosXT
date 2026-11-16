@@ -95,6 +95,20 @@ data class MediaListQuery(
         sql.args.toTypedArray()
     )
 
+    /**
+     * Custom order's start (spec §4.2): a place in album [albumId] for every item that has none,
+     * in the order of [items], as one statement and its bound values. Rows go in by item id, the
+     * order of `item_order`'s key, so its index fills in order.
+     */
+    internal fun seedOrder(albumId: String): Pair<String, Array<Any>> =
+        """
+        WITH s AS (${sql.inner})
+        INSERT OR IGNORE INTO item_order (albumId, mediaId, position)
+        SELECT ?, id, n FROM (SELECT id, ROW_NUMBER() OVER
+            (ORDER BY section, groupKey ${sql.dir}, ${sql.itemOrder}) AS n FROM s)
+        ORDER BY id
+        """.trimIndent() to (sql.args + albumId).toTypedArray()
+
     /** Where item [id] sits among [items], 0 being the first; no row when it isn't there. */
     internal fun positionOf(id: String): SupportSQLiteQuery = SimpleSQLiteQuery(
         """

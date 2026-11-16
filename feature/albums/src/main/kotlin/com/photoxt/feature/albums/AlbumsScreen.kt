@@ -282,11 +282,10 @@ private fun rememberTileActions(
     val scope = rememberCoroutineScope()
     val unsupported = stringResource(R.string.shortcut_unsupported)
     val organize = viewModel.organize
-    val movable = state.sort.field == AlbumSortField.CUSTOM
     return TileMenuActions(
         onPin = { tile, pinned -> organize.pin(tile.id, pinned) },
-        onMove = { tile: AlbumTile, up: Boolean -> viewModel.move(tile.id, up) }
-            .takeIf { movable || state.albums.orEmpty().any { it.pinned } },
+        onMove = { tile: AlbumTile, up: Boolean -> viewModel.move(tile.id, up) },
+        customOrder = state.sort.field == AlbumSortField.CUSTOM,
         onHide = { organize.hide(it.id) },
         onHideFromPictures = { tile, hidden -> organize.hideFromPictures(tile.id, hidden) },
         onGroup = { onDialog(OwnDialog.PICK_GROUP, it) },

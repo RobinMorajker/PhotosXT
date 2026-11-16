@@ -64,9 +64,7 @@ class SnapshotTest {
         assertEquals(settings.current().copy(device = DeviceState()), restored)
         assertEquals(
             ItemSort(ItemSortField.NAME, descending = false),
-            fresh.albumPrefsDao().prefsOf(ALBUM)?.let {
-                ItemSort(it.sort!!, it.sortDescending)
-            }
+            restored.sort.perAlbum[ALBUM]
         )
         assertEquals(
             listOf(ALBUM),

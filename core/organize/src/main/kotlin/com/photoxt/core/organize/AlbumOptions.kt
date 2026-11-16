@@ -6,6 +6,7 @@ import com.photoxt.core.database.AlbumPrefsEntity
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.model.AlbumSort
+import com.photoxt.core.model.AlbumSortField
 import com.photoxt.core.model.ItemSort
 import com.photoxt.core.model.MediaList
 import java.time.Clock
@@ -13,7 +14,6 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -36,24 +36,31 @@ class AlbumOptions @Inject constructor(
     fun prefsOf(albumId: String): Flow<AlbumPrefsEntity?> = prefs.prefsFlow(albumId)
 
     /** Album [albumId]'s sort: its own, else every album's default. */
-    fun sortOf(albumId: String): Flow<ItemSort> =
-        combine(prefs.prefsFlow(albumId), settings.settings) { own, all ->
-            own?.sort?.let { ItemSort(it, own.sortDescending) } ?: all.sort.albumDefault
-        }.distinctUntilChanged()
+    fun sortOf(albumId: String): Flow<ItemSort> = settings.settings
+        .map { it.sort.perAlbum[albumId] ?: it.sort.albumDefault }
+        .distinctUntilChanged()
 
     suspend fun setSort(albumId: String, sort: ItemSort) =
-        update(albumId) { it.copy(sort = sort.field, sortDescending = sort.descending) }
+        settings.updateSort { it.copy(perAlbum = it.perAlbum + (albumId to sort)) }
 
     /** *Apply to all albums* (spec §4.2): every album, new ones included, takes [sort]. */
-    suspend fun applyToAll(sort: ItemSort) {
-        settings.updateSort { it.copy(albumDefault = sort) }
-        prefs.clearSorts()
-    }
+    suspend fun applyToAll(sort: ItemSort) =
+        settings.updateSort { it.copy(albumDefault = sort, perAlbum = emptyMap()) }
 
     val albumsSort: Flow<AlbumSort> =
         settings.settings.map { it.sort.albums }.distinctUntilChanged()
 
-    suspend fun setAlbumsSort(sort: AlbumSort) = settings.updateSort { it.copy(albums = sort) }
+    /**
+     * The Albums tab's sort. Custom order starts from [onScreen], the albums in the order shown,
+     * the first time it is picked (spec §4.2); after that it comes back as the user left it.
+     */
+    suspend fun setAlbumsSort(sort: AlbumSort, onScreen: List<String> = emptyList()) {
+        if (sort.field == AlbumSortField.CUSTOM && !hasOrder()) setOrder(onScreen)
+        settings.updateSort { it.copy(albums = sort) }
+    }
+
+    private suspend fun hasOrder(): Boolean = prefs.prefsList().any { it.position != null } ||
+        prefs.groupList().any { it.position != null }
 
     val picturesSort: Flow<ItemSort> =
         settings.settings.map { it.sort.pictures }.distinctUntilChanged()

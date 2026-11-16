@@ -152,7 +152,13 @@ private fun DriveSyncSettings(
     )
     SwitchRow(
         title = stringResource(R.string.settings_drive_mobile),
-        body = stringResource(R.string.settings_drive_mobile_body),
+        body = stringResource(
+            if (sync.driveOnMobile) {
+                R.string.settings_drive_mobile_on
+            } else {
+                R.string.settings_drive_mobile_off
+            }
+        ),
         checked = sync.driveOnMobile,
         onChange = { on -> onChange { it.copy(driveOnMobile = on) } }
     )

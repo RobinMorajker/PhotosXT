@@ -4,7 +4,6 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
-import com.photoxt.core.model.ItemSortField
 import com.photoxt.core.model.TargetType
 import kotlinx.serialization.Serializable
 
@@ -13,8 +12,9 @@ import kotlinx.serialization.Serializable
 // albums they name are scanned again, and a row whose item is gone simply stays unseen.
 
 /**
- * What the user chose for one album (spec §4.2, Album options): its cover, its sort, its place in
- * Custom order and in a group, and whether it is hidden. One row per album the user touched.
+ * What the user chose for one album (spec §4.2, Album options): its cover, its place in Custom
+ * order and in a group, and whether it is hidden. One row per album the user touched. Its sort is
+ * in the settings (`SortSettings.perAlbum`).
  */
 @Entity(tableName = "album_prefs", indices = [Index("groupId")])
 @Serializable
@@ -22,9 +22,6 @@ data class AlbumPrefsEntity(
     @PrimaryKey val albumId: String,
     /** An item of the album as its cover; the newest item when null or gone. */
     val coverId: String? = null,
-    /** Its own sort; the default of every album (settings) when null. */
-    val sort: ItemSortField? = null,
-    val sortDescending: Boolean = true,
     /** Its place in the Albums tab's Custom order; new albums (null) join at the top. */
     val position: Double? = null,
     val groupId: String? = null,

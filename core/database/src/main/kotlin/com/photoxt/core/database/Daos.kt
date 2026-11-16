@@ -9,14 +9,18 @@ import androidx.room.Query
 import androidx.room.RawQuery
 import androidx.room.Transaction
 import androidx.room.Upsert
+import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteQuery
+import com.photoxt.core.model.ItemSortField
 import com.photoxt.core.model.TrackedFolderState
 import kotlinx.coroutines.flow.Flow
 
 /**
  * What screens read about media. Call the raw queries through the [TimelineQuery] extensions.
  * Pins, Custom order, virtual albums, hidden items and album options shape the lists, so they
- * reload them; offline pins feed the Offline filter. Each changes only when the user acts.
+ * reload them; offline pins feed the Offline filter. Each changes only when the user acts. Only
+ * Custom order reads `item_order`, so the grid's other sorts don't reload when it is written:
+ * picking Custom order writes a place for every item.
  */
 @Dao
 interface MediaDao {
@@ -37,6 +41,22 @@ interface MediaDao {
         ]
     )
     fun groupCountRows(query: SupportSQLiteQuery): Flow<List<GroupCount>>
+
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, OfflinePinEntity::class, PinEntity::class,
+            AlbumItemEntity::class, HiddenItemEntity::class, AlbumPrefsEntity::class
+        ]
+    )
+    fun timelineRowsBySort(query: SupportSQLiteQuery): PagingSource<Int, TimelineRow>
+
+    @RawQuery(
+        observedEntities = [
+            MediaEntity::class, OfflinePinEntity::class, PinEntity::class,
+            AlbumItemEntity::class, HiddenItemEntity::class, AlbumPrefsEntity::class
+        ]
+    )
+    fun groupCountRowsBySort(query: SupportSQLiteQuery): Flow<List<GroupCount>>
 
     @RawQuery
     suspend fun stampRows(query: SupportSQLiteQuery): List<MediaStamp>
@@ -104,6 +124,15 @@ suspend fun MediaDao.positionOf(query: MediaListQuery, item: ViewerItem): Int =
 /** The ids of [query]'s items in display order, for Custom order's start (spec §4.2). */
 suspend fun MediaDao.idsOf(query: MediaListQuery): List<String> = idRows(query.ids())
 
+/**
+ * Custom order's start (spec §4.2): every item of [query] without a place in album [albumId]
+ * takes one, in [query]'s order. One statement, so a 20,000-item album starts in under a second.
+ */
+suspend fun PxtDatabase.seedCustomOrder(albumId: String, query: MediaListQuery) = withTransaction {
+    val (sql, args) = query.seedOrder(albumId)
+    openHelper.writableDatabase.execSQL(sql, args)
+}
+
 /** How many items [query] lists. */
 suspend fun MediaDao.countOf(query: MediaListQuery): Int = count(query.count())
 
@@ -111,10 +140,18 @@ suspend fun MediaDao.countOf(query: MediaListQuery): Int = count(query.count())
 fun MediaDao.summary(query: MediaListQuery): Flow<ListSummary> = summaryRows(query.summary())
 
 fun MediaDao.timeline(query: TimelineQuery): PagingSource<Int, TimelineRow> =
-    timelineRows(query.rows())
+    if (query.sort.field == ItemSortField.CUSTOM) {
+        timelineRows(query.rows())
+    } else {
+        timelineRowsBySort(query.rows())
+    }
 
 fun MediaDao.groupCounts(query: TimelineQuery): Flow<List<GroupCount>> =
-    groupCountRows(query.groupCounts())
+    if (query.sort.field == ItemSortField.CUSTOM) {
+        groupCountRows(query.groupCounts())
+    } else {
+        groupCountRowsBySort(query.groupCounts())
+    }
 
 suspend fun MediaDao.stampsInGroup(query: TimelineQuery, groupKey: Int): List<MediaStamp> =
     stampRows(query.stampsInGroup(groupKey))
@@ -223,7 +260,7 @@ interface AlbumDao {
      * The Albums tab: every device folder with items, every tracked Drive folder (empty or not)
      * counting all items below it, and new phone albums still empty. Empty ones come first (one
      * just made, or a Drive folder still syncing), then newest first, each with its newest item
-     * as the cover.
+     * as the cover. Hidden items count for nothing and are never the cover (spec §4.8).
      */
     @Query(
         """
@@ -235,19 +272,23 @@ interface AlbumDao {
                 COALESCE(a.createdAt, MIN(m.addedAt), 0) AS createdAt,
                 COALESCE(SUM(m.bytes), 0) AS totalBytes,
                 COALESCE((SELECT pr.coverId FROM album_prefs pr JOIN media pc
-                    ON pc.id = pr.coverId WHERE pr.albumId = a.id),
+                    ON pc.id = pr.coverId WHERE pr.albumId = a.id
+                        AND pc.id NOT IN (SELECT mediaId FROM hidden_item)),
                 CASE WHEN a.rootId IS NULL THEN
                     (SELECT c.id FROM media c WHERE c.albumId = a.id
+                        AND c.id NOT IN (SELECT mediaId FROM hidden_item)
                         ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
                 ELSE
                     (SELECT c.id FROM media c
                         WHERE c.albumId IN (SELECT y.id FROM album y WHERE y.rootId = a.id)
+                        AND c.id NOT IN (SELECT mediaId FROM hidden_item)
                         ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)
                 END) AS coverId
             FROM album a
             LEFT JOIN tracked_folder t ON t.albumId = a.id
             LEFT JOIN album x ON (a.rootId IS NULL AND x.id = a.id) OR x.rootId = a.id
             LEFT JOIN media m ON m.albumId = x.id
+                AND m.id NOT IN (SELECT mediaId FROM hidden_item)
             WHERE a.parentId IS NULL AND a.type IN ('DEVICE_FOLDER', 'DRIVE_FOLDER')
             GROUP BY a.id
             HAVING count > 0 OR a.type = 'DRIVE_FOLDER' OR a.pending = 1
@@ -269,10 +310,13 @@ interface AlbumDao {
                 COALESCE(a.createdAt, MIN(m.addedAt), 0) AS createdAt,
                 COALESCE(SUM(m.bytes), 0) AS totalBytes,
                 COALESCE((SELECT pr.coverId FROM album_prefs pr JOIN media pc
-                    ON pc.id = pr.coverId WHERE pr.albumId = a.id),
+                    ON pc.id = pr.coverId WHERE pr.albumId = a.id
+                        AND pc.id NOT IN (SELECT mediaId FROM hidden_item)),
                     (SELECT c.id FROM media c WHERE c.albumId = a.id
+                        AND c.id NOT IN (SELECT mediaId FROM hidden_item)
                         ORDER BY c.takenAt DESC, c.id DESC LIMIT 1)) AS coverId
             FROM album a LEFT JOIN media m ON m.albumId = a.id
+                AND m.id NOT IN (SELECT mediaId FROM hidden_item)
             WHERE a.parentId = :parentId
             GROUP BY a.id
         ) s

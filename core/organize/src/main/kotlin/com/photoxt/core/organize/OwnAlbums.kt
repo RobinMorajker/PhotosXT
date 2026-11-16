@@ -12,6 +12,7 @@ import com.photoxt.core.database.SMART_PREFIX
 import com.photoxt.core.database.VIRTUAL_PREFIX
 import com.photoxt.core.database.VirtualAlbumSummary
 import com.photoxt.core.database.idsOf
+import com.photoxt.core.database.seedCustomOrder
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.ItemSort
 import com.photoxt.core.model.ItemSortField
@@ -74,26 +75,22 @@ class OwnAlbums @Inject constructor(
     suspend fun rename(albumId: String, name: String) = dao.retitle(albumId, name.trim())
 
     /** Deletes a virtual or smart album; no item is touched. */
-    suspend fun delete(albumId: String) = dao.deleteOwn(albumId)
+    suspend fun delete(albumId: String) = database.withTransaction {
+        dao.deleteOwn(albumId)
+        // Its Custom order has no key to the album: a large one would stay in settings sync.
+        dao.clearOrder(albumId)
+    }
 
     // --- Custom order (spec §4.2) ----------------------------------------------------------
 
     /**
-     * Picks Custom order for album [albumId]: it starts from the order on screen, the album's
-     * [current] sort, so nothing jumps.
+     * Picks Custom order for album [albumId]. The first time it starts from the order on screen,
+     * the album's [current] sort, so nothing jumps; after that it comes back as the user left
+     * it, new items at the top, rather than being replaced by whichever sort was on screen.
      */
     suspend fun startCustomOrder(albumId: String, current: MediaListQuery) {
-        if (current.sort.field == ItemSortField.CUSTOM) return
-        val ids = mediaDao.idsOf(current)
-        database.withTransaction {
-            ids.chunked(MAX_SQL_VARIABLES).forEachIndexed { chunk, part ->
-                dao.saveOrder(
-                    part.mapIndexed { i, id ->
-                        ItemOrderEntity(albumId, id, (chunk * MAX_SQL_VARIABLES + i + 1).toDouble())
-                    }
-                )
-            }
-        }
+        if (current.sort.field == ItemSortField.CUSTOM || dao.hasOrder(albumId)) return
+        database.seedCustomOrder(albumId, current)
     }
 
     /**

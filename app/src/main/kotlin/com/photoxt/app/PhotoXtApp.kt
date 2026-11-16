@@ -46,6 +46,7 @@ import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.ui.EmptyState
 import com.photoxt.core.ui.LocalMediaHero
 import com.photoxt.core.ui.MediaHeroState
+import com.photoxt.core.ui.PrivateLock
 import com.photoxt.feature.albums.AlbumGroupScreen
 import com.photoxt.feature.albums.AlbumsScreen
 import com.photoxt.feature.albums.DriveBrowserScreen
@@ -139,6 +140,10 @@ private val SnackbarLift = 88.dp
 
 @Composable
 private fun Tabs(navigation: NavigationState, modifier: Modifier = Modifier) {
+    // Hidden and the vault lock again whenever the Library list shows (spec §4.8). Decided here:
+    // NavDisplay can keep the list composed under the pages it opened, so the list can't tell.
+    val libraryShows = navigation.currentTab == TopLevelTab.Library && navigation.atTabRoot
+    LaunchedEffect(libraryShows) { if (libraryShows) PrivateLock.lock() }
     // While a grid is in multi-select, its action bar takes the navigation bar's place.
     val navigationSuite = rememberNavigationSuiteScaffoldState()
     val scope = rememberCoroutineScope()

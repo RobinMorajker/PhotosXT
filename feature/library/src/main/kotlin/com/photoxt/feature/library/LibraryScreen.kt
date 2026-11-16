@@ -14,7 +14,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,11 +31,11 @@ import com.photoxt.core.designsystem.PxtTheme
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.transfer.canManageMedia
 import com.photoxt.core.transfer.manageMediaIntent
-import com.photoxt.core.ui.PrivateLock
 
 /**
  * The Library tab (spec §4.1): its pages, and media management. Pinned, Recent, Places, People,
- * Things and Cleanup join with their phases. Showing it locks Hidden and the vault again.
+ * Things and Cleanup join with their phases. The app locks Hidden and the vault again whenever
+ * this list shows.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,7 +50,6 @@ fun LibraryScreen(title: String, onOpen: (LibraryPage) -> Unit, modifier: Modifi
         manageMedia = canManageMedia(context)
         onStopOrDispose { }
     }
-    LaunchedEffect(Unit) { PrivateLock.lock() }
     val manageIntent = remember { manageMediaIntent(context) }
     Column(modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection)) {
         PxtCollapsingHeader(title = title, scrollBehavior = scrollBehavior)

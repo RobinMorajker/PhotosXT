@@ -44,14 +44,21 @@ class SortSpeedTest {
         val sorts = ItemSortField.entries.flatMap {
             listOf(ItemSort(it, false), ItemSort(it, true))
         }
+        var shown = ItemSort()
         val slowest = sorts.maxOf { sort ->
-            measureTime { switchTo(sort) }.inWholeMilliseconds.also { println("$sort: $it ms") }
+            val took = measureTime { switchTo(shown, sort) }.inWholeMilliseconds
+            println("$sort: $took ms")
+            shown = sort
+            took
         }
         assertTrue("slowest sort switch took $slowest ms", slowest < LIMIT_MS)
     }
 
-    /** What the grid and the viewer load after a sort is picked. */
-    private suspend fun switchTo(sort: ItemSort) {
+    /** What the grid and the viewer load after [sort] is picked over [shown]. */
+    private suspend fun switchTo(shown: ItemSort, sort: ItemSort) {
+        if (sort.field == ItemSortField.CUSTOM && shown.field != ItemSortField.CUSTOM) {
+            database.seedCustomOrder(ALBUM, MediaListQuery(albumId = ALBUM, sort = shown))
+        }
         val grid = TimelineQuery(albumId = ALBUM, sort = sort)
         media.groupCounts(grid).first()
         media.timeline(grid).load(

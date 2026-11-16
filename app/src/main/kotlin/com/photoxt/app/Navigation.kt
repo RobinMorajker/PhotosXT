@@ -232,6 +232,9 @@ class NavigationState internal constructor(
     /** Whether a full-screen destination covers the tabs. */
     val overlayOpen: Boolean get() = overlays.isNotEmpty()
 
+    /** Whether the current tab shows its own first screen, nothing opened over it. */
+    val atTabRoot: Boolean get() = backStacks.getValue(currentTab).size <= 1 && !overlayOpen
+
     /** Shows [key] full screen, over the tabs and any other full-screen destination. */
     fun openOverlay(key: NavKey) {
         overlays.add(key)

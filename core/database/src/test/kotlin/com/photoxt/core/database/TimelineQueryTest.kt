@@ -100,6 +100,14 @@ class TimelineQueryTest {
         assertEquals("content://b", albums.first().coverUri)
     }
 
+    @Test
+    fun hiddenItemsNeitherCountNorShowAsTheCover() = runTest {
+        database.hiddenDao().hide(listOf(HiddenItemEntity("b", hiddenAt = 1)))
+        val camera = database.albumDao().albums().first().first { it.id == "camera" }
+        assertEquals(3, camera.count)
+        assertEquals("content://a", camera.coverUri)
+    }
+
     /** An album just made has no items yet: it leads the list, where it can be found. */
     @Test
     fun aNewEmptyAlbumComesFirst() = runTest {

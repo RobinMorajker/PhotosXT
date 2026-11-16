@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 6,
-    "identityHash": "3b9cbb56f01bc3d2049132637cc97ff2",
+    "identityHash": "000199d2460225cf688914347b958491",
     "entities": [
       {
         "tableName": "album",
@@ -1143,7 +1143,7 @@
       },
       {
         "tableName": "album_prefs",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`albumId` TEXT NOT NULL, `coverId` TEXT, `sort` TEXT, `sortDescending` INTEGER NOT NULL, `position` REAL, `groupId` TEXT, `hidden` INTEGER NOT NULL, `hideFromPictures` INTEGER NOT NULL, PRIMARY KEY(`albumId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`albumId` TEXT NOT NULL, `coverId` TEXT, `position` REAL, `groupId` TEXT, `hidden` INTEGER NOT NULL, `hideFromPictures` INTEGER NOT NULL, PRIMARY KEY(`albumId`))",
         "fields": [
           {
             "fieldPath": "albumId",
@@ -1155,17 +1155,6 @@
             "fieldPath": "coverId",
             "columnName": "coverId",
             "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "sort",
-            "columnName": "sort",
-            "affinity": "TEXT"
-          },
-          {
-            "fieldPath": "sortDescending",
-            "columnName": "sortDescending",
-            "affinity": "INTEGER",
-            "notNull": true
           },
           {
             "fieldPath": "position",
@@ -1587,7 +1576,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3b9cbb56f01bc3d2049132637cc97ff2')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '000199d2460225cf688914347b958491')"
     ]
   }
 }

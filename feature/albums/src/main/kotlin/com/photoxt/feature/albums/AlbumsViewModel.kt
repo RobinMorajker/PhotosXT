@@ -163,17 +163,8 @@ class AlbumsViewModel @Inject constructor(
     }
 
     fun setSort(sort: AlbumSort) {
-        viewModelScope.launch {
-            // Custom order starts from the order on screen (spec §4.2).
-            if (sort.field == AlbumSortField.CUSTOM && uiState.value.sort.field != sort.field) {
-                options.setOrder(
-                    uiState.value.albums.orEmpty().filterNot {
-                        it.pinned
-                    }.map { it.id }
-                )
-            }
-            options.setAlbumsSort(sort)
-        }
+        val onScreen = uiState.value.albums.orEmpty().filterNot { it.pinned }.map { it.id }
+        viewModelScope.launch { options.setAlbumsSort(sort, onScreen) }
     }
 
     /** Custom order's *Edit order*: dragging an album moves it. */

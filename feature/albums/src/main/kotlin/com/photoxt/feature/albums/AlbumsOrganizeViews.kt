@@ -91,8 +91,10 @@ private fun KindRow(title: Int, body: Int, icon: Int, onClick: () -> Unit) {
 /** What an album tile's long-press menu can do. */
 data class TileMenuActions(
     val onPin: (AlbumTile, Boolean) -> Unit = { _, _ -> },
-    /** Set when the tile can move (a pin, or Custom order): up when true. */
+    /** Moves a pin among the pins, or any album in Custom order: up when true. */
     val onMove: ((AlbumTile, Boolean) -> Unit)? = null,
+    /** The Albums tab is in Custom order, so every album can move, not only the pins. */
+    val customOrder: Boolean = false,
     val onHide: (AlbumTile) -> Unit = {},
     val onHideFromPictures: (AlbumTile, Boolean) -> Unit = { _, _ -> },
     val onGroup: (AlbumTile) -> Unit = {},
@@ -127,7 +129,7 @@ internal fun TileMenu(
             if (tile.pinned) R.string.action_unpin_album else R.string.action_pin_album,
             pick { actions.onPin(tile, !tile.pinned) }
         )
-        actions.onMove?.let { move ->
+        actions.onMove?.takeIf { tile.pinned || actions.customOrder }?.let { move ->
             Entry(R.string.action_move_up, pick { move(tile, true) })
             Entry(R.string.action_move_down, pick { move(tile, false) })
         }

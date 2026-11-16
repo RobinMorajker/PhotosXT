@@ -1,12 +1,16 @@
 package com.photoxt.core.organize
 
+import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.photoxt.core.database.PlaybackPositionEntity
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.datastore.SettingsStore
+import com.photoxt.core.media.ThumbnailStore
 import com.photoxt.core.model.MediaKind
+import com.photoxt.core.model.TargetType
+import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -29,6 +33,7 @@ class HistoryTest {
         ApplicationProvider.getApplicationContext(),
         PxtDatabase::class.java
     ).allowMainThreadQueries().build()
+    private val context = ApplicationProvider.getApplicationContext<Context>()
     private val clock = TestClock()
     private val settings = SettingsStore(MemorySettings())
     private val hiding = Hiding(database, clock)
@@ -67,6 +72,22 @@ class HistoryTest {
         assertNull(history.viewed("a", ALBUM))
         assertEquals(0, history.viewCount("a").first())
         assertTrue(history.recent.first().isEmpty())
+    }
+
+    @Test
+    fun bookmarksOfHiddenItemsStayOutOfTheListUntilUnhidden() = runTest {
+        val thumbnails = ThumbnailStore(File(context.cacheDir, "thumbs"))
+        val bookmarks = Bookmarks(context, database, thumbnails, clock)
+        val collection = bookmarks.newCollection("Trip", null)
+        bookmarks.add(collection, TargetType.ITEM, "a", null)
+        val dao = database.bookmarkDao()
+
+        hiding.hide(listOf("a"))
+        assertTrue(dao.bookmarks(collection).first().isEmpty())
+        assertEquals(0, dao.collections().first().single().count)
+
+        hiding.unhide(listOf("a"))
+        assertEquals(listOf("a"), dao.bookmarks(collection).first().map { it.targetId })
     }
 
     @Test

@@ -41,15 +41,18 @@ data class PxtSettings(
 )
 
 /**
- * Sort choices (spec §4.2, Scope): the Albums tab and Pictures keep one each; [albumDefault] is
- * every album's that has none of its own (*Apply to all albums* sets it); Library lists each keep
- * their own, by [com.photoxt.core.model.MediaList] name.
+ * Sort choices (spec §4.2, Scope): the Albums tab and Pictures keep one each; albums keep their
+ * own in [perAlbum], by album id, and [albumDefault] is every other album's (*Apply to all albums*
+ * sets it); Library lists each keep their own, by [com.photoxt.core.model.MediaList] name.
+ *
+ * Album sorts live here rather than in Room: a write to `album_prefs` reloads every open grid.
  */
 @Serializable
 data class SortSettings(
     val albums: AlbumSort = AlbumSort(),
     val pictures: ItemSort = ItemSort(),
     val albumDefault: ItemSort = ItemSort(),
+    val perAlbum: Map<String, ItemSort> = emptyMap(),
     val lists: Map<String, ItemSort> = emptyMap()
 )
 
