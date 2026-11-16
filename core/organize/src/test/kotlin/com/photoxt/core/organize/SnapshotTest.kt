@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.photoxt.core.database.ItemOrderEntity
 import com.photoxt.core.database.PlaybackPositionEntity
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.datastore.DeviceState
@@ -20,11 +21,13 @@ import com.photoxt.core.model.MediaList
 import com.photoxt.core.model.SmartRule
 import com.photoxt.core.model.TargetType
 import java.io.File
+import kotlin.random.Random
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
@@ -91,6 +94,25 @@ class SnapshotTest {
         assertNotEquals(before, Snapshots.hash(SnapshotTables(old).read(settings.current())))
     }
 
+    /** A smart album of a whole phone in Custom order: the copy stays small, and old ones read. */
+    @Test
+    fun theCopyIsGzippedAndAPlainOneStillReads() {
+        val album = "smart:ea45b890-96e4-4ba1-960a-cdc498eb9079"
+        val places = (1..ORDER_SIZE).shuffled(Random(1))
+        val order = places.mapIndexed { i, place ->
+            ItemOrderEntity(album, "device:${1_000_000_000 + i}", place.toDouble())
+        }
+        val copy = Snapshot(settings = "{}", order = order)
+
+        val plain = Snapshots.encode(copy).encodeToByteArray()
+        val packed = Snapshots.pack(copy)
+        println("$ORDER_SIZE places: ${plain.size / KIB} KiB, gzipped ${packed.size / KIB} KiB")
+        assertTrue("packed ${packed.size} bytes", packed.size < PACKED_LIMIT)
+        assertEquals(copy, Snapshots.unpack(packed))
+        // What the first Phase 6 builds wrote: plain JSON under the same name.
+        assertEquals(copy, Snapshots.unpack(plain))
+    }
+
     @Test
     fun aCopyFromANewerVersionStillReads() {
         val text = """{"version":2,"settings":"{}","pins":[],"future":{"x":1}}"""
@@ -141,3 +163,7 @@ class SnapshotTest {
         .allowMainThreadQueries()
         .build()
 }
+
+private const val ORDER_SIZE = 24_000
+private const val PACKED_LIMIT = 300 * 1024
+private const val KIB = 1024

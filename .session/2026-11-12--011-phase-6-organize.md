@@ -41,10 +41,11 @@
   - Settings said "Off: Drive albums sync … on Wi-Fi only" beside a switch that was on; the line now follows the switch.
   - Deleting an own album left its Custom order behind (24,000 rows, 2.3 MB in settings sync); it goes with the album now.
   - After an unlock, Hidden and the vault stayed open when the Library list showed again, until the app went to the background: the list's own lock effect ran only once, as NavDisplay can keep it composed. The app shell now locks them whenever the Library list shows.
+- Follow-up (2026-11-16, Robin asked): a 24,000-item Custom order made each settings upload 2.3 MB. The copy is now gzipped under the same name (`Snapshots.pack`/`unpack`; a plain copy from the first builds still restores): 2,473 KiB of JSON becomes 144 KiB in `SnapshotTest`, and on the A15 such an album uploaded 150 KiB (was 2,361 KiB). `pm clear`, sign-in and "Restored settings from Drive" brought that album back in Custom order; deleting it took the upload back to 1 KiB.
 - Wireless debugging switched itself off once on 2026-11-15; Robin turned it back on. On 2026-11-16 a plain `adb devices` through WPSC hung the channel (memory.md warns against it).
 
 ## Checks run
-- The CI command, `spotlessCheck detekt lintDebug testDebugUnitTest assembleDebug :baselineprofile:assemble`: green, 188 tests (139 before the phase), no Lint or detekt findings.
+- The CI command, `spotlessCheck detekt lintDebug testDebugUnitTest assembleDebug :baselineprofile:assemble`: green, 189 tests (139 before the phase), no Lint or detekt findings.
 - Screenshot goldens re-recorded for intended changes only: a Sort button in the Pictures, album and Albums headers, *Album* and *Favorite* in the selection bar, the Library's new rows, and the five new Library pages (Bookmarks, History, Hidden, Vault, Settings) at 100% and 200% text; later the Settings page's mobile-data line.
 - Logging: the new log lines are "Restored settings from Drive", "Settings synced (N KiB)", the vault's "A vault item couldn't be read", the settings-sync failures, and in debug builds "Sort <field> <up/down>: first rows in N ms". None carries a name, path, address or token, and all go through `PxtLog`.
 

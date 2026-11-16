@@ -241,8 +241,7 @@ class SettingsSync @Inject constructor(
     private suspend fun restoreFrom(account: AccountEntity) {
         val file = appData.find(account.id, FILE_NAME)
         if (file != null) {
-            val text = appData.read(account.id, file.id).decodeToString()
-            val snapshot = Snapshots.decode(text)
+            val snapshot = Snapshots.unpack(appData.read(account.id, file.id))
             if (snapshot != null) {
                 apply(snapshot)
                 settings.updateDevice {
@@ -267,11 +266,11 @@ class SettingsSync @Inject constructor(
         val hash = Snapshots.hash(snapshot)
         if (hash == settings.current().device.syncedHash) return
         val now = clock.millis()
-        val text = Snapshots.encode(snapshot.copy(savedAt = now))
+        val bytes = Snapshots.pack(snapshot.copy(savedAt = now))
         val existing = appData.find(account.id, FILE_NAME)
-        appData.write(account.id, FILE_NAME, text.encodeToByteArray(), existing?.id)
+        appData.write(account.id, FILE_NAME, bytes, GZIP, existing?.id)
         settings.updateDevice { it.copy(syncedAt = now, syncedHash = hash) }
-        PxtLog.i(TAG, "Settings synced (${text.length / KIB} KiB)")
+        PxtLog.i(TAG, "Settings synced (${(bytes.size + KIB - 1) / KIB} KiB)")
     }
 
     /** Restores [snapshot]: settings, the user's tables, and the Drive albums it lists. */
@@ -336,6 +335,9 @@ class SettingsSync @Inject constructor(
         private const val WORK = "settings-sync"
         private const val DEBOUNCE_MS = 15_000L
         private const val KIB = 1024
+        private const val GZIP = "application/gzip"
+
+        /** Gzipped since 2026-11-16; the name stays, so a copy written before still restores. */
         const val FILE_NAME = "photoxt-settings.json"
     }
 }

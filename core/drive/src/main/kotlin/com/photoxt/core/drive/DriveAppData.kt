@@ -23,11 +23,15 @@ class DriveAppData(private val http: DriveHttp) {
             response.body.bytes()
         }
 
-    /** Writes [bytes] as app-data file [name]: over [fileId] when given, else as a new file. */
+    /**
+     * Writes [bytes], of media type [type], as app-data file [name]: over [fileId] when given,
+     * else as a new file.
+     */
     suspend fun write(
         accountId: String,
         name: String,
         bytes: ByteArray,
+        type: String,
         fileId: String?
     ): DriveFile {
         val url = http.baseUrl.newBuilder()
@@ -36,7 +40,7 @@ class DriveAppData(private val http: DriveHttp) {
             .addQueryParameter("uploadType", if (fileId != null) "media" else "multipart")
             .addQueryParameter("fields", "id,name,modifiedTime,size")
             .build()
-        val content = bytes.toRequestBody(JSON)
+        val content = bytes.toRequestBody(type.toMediaType())
         val request = Request.Builder()
             .url(url)
             .tag(DriveAccount::class.java, DriveAccount(accountId))

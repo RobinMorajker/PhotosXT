@@ -16,6 +16,9 @@ import com.photoxt.core.database.PlaybackPositionEntity
 import com.photoxt.core.database.PxtDatabase
 import com.photoxt.core.datastore.PxtSettings
 import com.photoxt.core.datastore.SettingsJson
+import java.io.ByteArrayOutputStream
+import java.util.zip.GZIPInputStream
+import java.util.zip.GZIPOutputStream
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -31,7 +34,7 @@ data class SnapFolder(
     val offline: Boolean = false
 )
 
-/** Everything settings sync keeps in Drive (spec §4.8), as one JSON file. */
+/** Everything settings sync keeps in Drive (spec §4.8), as one gzipped JSON file. */
 @Serializable
 data class Snapshot(
     val version: Int = VERSION,
@@ -66,6 +69,30 @@ internal object Snapshots {
 
     fun decode(text: String): Snapshot? =
         runCatching { json.decodeFromString(Snapshot.serializer(), text) }.getOrNull()
+
+    /**
+     * The copy as Drive keeps it: gzipped JSON. A 24,000-item Custom order is about 2.4 MB of
+     * JSON, mostly repeated keys and ids, and about 150 KB gzipped.
+     */
+    fun pack(snapshot: Snapshot): ByteArray = ByteArrayOutputStream().also { out ->
+        GZIPOutputStream(out).use { it.write(encode(snapshot).encodeToByteArray()) }
+    }.toByteArray()
+
+    /** A copy from Drive: gzipped as [pack] writes it, or plain JSON as the first builds did. */
+    fun unpack(bytes: ByteArray): Snapshot? {
+        val gzipped = bytes.size > 2 && bytes[0] == GZIP_1 && bytes[1] == GZIP_2
+        val text = if (gzipped) {
+            runCatching { GZIPInputStream(bytes.inputStream()).use { it.readBytes() } }
+                .getOrNull() ?: return null
+        } else {
+            bytes
+        }
+        return decode(text.decodeToString())
+    }
+
+    /** gzip's magic number, 1f 8b. */
+    private const val GZIP_1: Byte = 0x1f
+    private const val GZIP_2: Byte = 0x8b.toByte()
 
     /** What the copy holds, whenever it was saved: an unchanged state isn't sent again. */
     fun hash(snapshot: Snapshot): String = sha256(encode(snapshot.copy(savedAt = 0)))
