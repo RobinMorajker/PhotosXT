@@ -6,6 +6,7 @@ import com.photoxt.core.database.TransferJobEntity
 import com.photoxt.core.drive.DriveFile
 import com.photoxt.core.drive.driveReason
 import com.photoxt.core.drive.driveStatus
+import com.photoxt.core.model.Ellipse01
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.TransferState
@@ -35,6 +36,21 @@ interface TransferEnvironment {
 
     /** A small JPEG of phone item [uri], for the vault's grid (spec §4.8); null without one. */
     fun thumbnailJpeg(uri: String): ByteArray? = null
+
+    /** Where edited phone items' originals are kept (spec §4.10); never a cache folder. */
+    val originalsDir: File get() = File(checkNotNull(workDir.parentFile), "edits/originals")
+
+    /**
+     * Whether PhotoXT reads phone photos unredacted, location included (`ACCESS_MEDIA_LOCATION`).
+     * Without it a kept original would lose its location, so *Save* over the item waits.
+     */
+    val readsOriginals: Boolean get() = true
+
+    /** The subject mask asset of the photo in [photo], for a pasted recipe that needs one. */
+    suspend fun subjectMask(photo: File): String? = null
+
+    /** The faces in the photo in [photo], for pasted skin smoothing. */
+    suspend fun faces(photo: File): List<Ellipse01> = emptyList()
 }
 
 /** What a running job is doing, for the progress notification. */

@@ -23,9 +23,16 @@ import com.photoxt.core.media.DriveSource
 import com.photoxt.core.media.MediaSources
 import com.photoxt.core.media.ThumbnailStore
 import com.photoxt.core.model.AlbumType
+import com.photoxt.core.model.EditRecipe
+import com.photoxt.core.model.Ellipse01
+import com.photoxt.core.model.ExportOptions
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.render.EditJson
+import com.photoxt.core.render.ExportRequest
+import com.photoxt.core.render.ExportResult
+import com.photoxt.core.render.PhotoExporter
 import com.photoxt.core.vault.Vault
 import com.photoxt.core.vault.VaultKeys
 import java.io.File
@@ -72,7 +79,10 @@ class Harness : AutoCloseable {
     }
 
     /** A new engine, as a new process would have after the old one was killed. */
-    fun newEngine() = TransferEngine(database, device, files, env, clock, vault, store)
+    fun newEngine() = TransferEngine(database, device, files, env, clock, vault, store, exporter)
+
+    /** Renders an "edit" without a GPU: the original's bytes, reversed, plus the recipe. */
+    val exporter = FakeExporter()
 
     var engine = newEngine()
     val queue: TransferQueue
@@ -264,9 +274,22 @@ class Harness : AutoCloseable {
     }
 }
 
+/** The GPU export stood in for: a deterministic function of the original and the recipe. */
+class FakeExporter : PhotoExporter {
+    val exported = mutableListOf<String>()
+
+    override suspend fun export(request: ExportRequest, progress: (Float) -> Unit): ExportResult {
+        val json = EditJson.encode(request.recipe)
+        exported += json
+        request.output.writeBytes(request.input.readBytes().reversedArray() + json.toByteArray())
+        return ExportResult(request.inputMime, 1, 1, request.output.length())
+    }
+}
+
 class FakeEnvironment(override val workDir: File) : TransferEnvironment {
     val noScope = HashSet<String>()
     val written = mutableListOf<String>()
+    override var readsOriginals = true
     val tracked = mutableListOf<String>()
     override var online = true
 
@@ -279,6 +302,11 @@ class FakeEnvironment(override val workDir: File) : TransferEnvironment {
     override suspend fun trackFolder(account: String, folderId: String, name: String) {
         tracked += "$account:$folderId:$name"
     }
+
+    /** What the face finder finds in every photo. */
+    var faces: List<Ellipse01> = emptyList()
+
+    override suspend fun faces(photo: File): List<Ellipse01> = faces
 }
 
 /** The vault's key without the Android Keystore, which Robolectric doesn't have. */

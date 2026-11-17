@@ -75,6 +75,18 @@
         <item quantity="one">Saved %1$,d JPEG</item>
         <item quantity="other">Saved %1$,d JPEGs</item>
     </plurals>
+    <plurals name="transfer_edited">
+        <item quantity="one">Saved edits to %1$,d photo</item>
+        <item quantity="other">Saved edits to %1$,d photos</item>
+    </plurals>
+    <plurals name="transfer_edit_copied">
+        <item quantity="one">Saved %1$,d edited copy</item>
+        <item quantity="other">Saved %1$,d edited copies</item>
+    </plurals>
+    <plurals name="transfer_reverted">
+        <item quantity="one">Reverted %1$,d photo to the original</item>
+        <item quantity="other">Reverted %1$,d photos to the original</item>
+    </plurals>
     <plurals name="transfer_removed">
         <item quantity="one">Removed %1$,d item from its album</item>
         <item quantity="other">Removed %1$,d items from their album</item>

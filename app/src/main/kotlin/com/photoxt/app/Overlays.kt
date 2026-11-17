@@ -13,6 +13,7 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import com.photoxt.core.model.MediaList
 import com.photoxt.core.ui.RequireUnlocked
+import com.photoxt.feature.editor.EditorScreen
 import com.photoxt.feature.library.VaultViewerScreen
 import com.photoxt.feature.player.PlayerScreen
 import com.photoxt.feature.viewer.CompareScreen
@@ -71,7 +72,10 @@ private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<Na
                         onCompare = { first, second ->
                             navigation.openOverlay(CompareKey(first, second))
                         },
-                        onPanorama = { uri, crop -> navigation.openOverlay(PanoramaKey(uri, crop)) }
+                        onPanorama = { uri, crop ->
+                            navigation.openOverlay(PanoramaKey(uri, crop))
+                        },
+                        onEdit = { navigation.openOverlay(EditorKey(it)) }
                     )
                 )
             }
@@ -83,6 +87,9 @@ private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<Na
                 albumId = key.albumId,
                 startAt = key.startAt
             )
+        }
+        entry<EditorKey> { key ->
+            EditorScreen(mediaId = key.mediaId, onClose = { navigation.closeOverlay(key) })
         }
         entry<VaultViewerKey> { key ->
             VaultViewerScreen(startIndex = key.index, onClose = { navigation.closeOverlay(key) })

@@ -321,7 +321,9 @@ internal class Copier(
             modifiedTime = meta.modifiedAt?.let { Instant.ofEpochMilli(it).toString() },
             appProperties = meta.takenAt?.let { mapOf(TAKEN_AT_PROPERTY to it.toString()) }
         )
-        val (session, status) = session(run, account, metadata, meta.mime, size)
+        val (session, status) = session(run, account, size) {
+            drive.uploads.start(account, metadata, meta.mime, size)
+        }
         run.bytesTotal = size
         val file = input.use { send(run, session, it, status) }
         return verifiedOnDrive(run, account, file, md5, size)
@@ -329,23 +331,63 @@ internal class Copier(
 
     /**
      * The upload session to send through, and how much of it Drive holds: the saved one, which
-     * outlives the app, or a new one when there is none or Drive forgot it (after about a week).
+     * outlives the app, or a new one from [open] when there is none or Drive forgot it (after
+     * about a week).
      */
     private suspend fun session(
         run: JobRun,
         account: String,
-        metadata: DriveFileWrite,
-        mime: String,
-        size: Long
+        size: Long,
+        open: suspend () -> UploadSession
     ): Pair<UploadSession, UploadStatus> {
         run.progress.session?.let { url ->
             val saved = UploadSession(account, url, size)
             statusOf(saved)?.let { return saved to it }
         }
-        val session = drive.uploads.start(account, metadata, mime, size)
+        val session = open()
         run.save(run.progress.copy(session = session.url))
         return session to UploadStatus.Partial(0)
     }
+
+    /**
+     * [file] uploaded as the next version of the job's own Drive file (spec §4.10: an edit, or a
+     * revert), resumably, then checked against [md5].
+     */
+    suspend fun uploadRevision(run: JobRun, file: File, mime: String, md5: String): DriveFile {
+        val account = checkNotNull(run.src.account)
+        val fileId = checkNotNull(run.src.fileId)
+        val size = file.length()
+        val (session, status) = session(run, account, size) {
+            drive.uploads.startRevision(account, fileId, DriveFileWrite(), mime, size)
+        }
+        run.bytesTotal = size
+        val made = fileInput(file, md5).use { send(run, session, it, status) }
+        run.save(run.progress.copy(session = null))
+        if (!md5.equals(made.md5Checksum, ignoreCase = true)) {
+            throw VerificationException("Drive's new version doesn't match what was sent")
+        }
+        return made
+    }
+
+    /** [file] written as new item [name] into [here], on the phone or in Drive, checked. */
+    suspend fun place(
+        run: JobRun,
+        here: Destination,
+        name: String,
+        meta: FileRef,
+        file: File
+    ): FileRef {
+        here.account?.let { env.requireDriveWrite(it) }
+        val input = fileInput(file, null)
+        return if (here.isDrive) {
+            upload(run, here, name, meta, input)
+        } else {
+            writeToPhone(run, here, name, meta, input)
+        }
+    }
+
+    /** The folder [src] is in, as a destination. */
+    fun folderFor(src: FileRef): Destination = folderOf(src)
 
     /** How much of [session] Drive holds; null when Drive no longer knows the session. */
     private suspend fun statusOf(session: UploadSession): UploadStatus? = try {

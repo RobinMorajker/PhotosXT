@@ -89,7 +89,7 @@ class FakeDevice : DeviceStore {
     }
 
     override fun openOutput(uri: String): OutputStream {
-        val item = items[uri] ?: throw FileNotFoundException(uri)
+        val item = writable(uri)
         return object : ByteArrayOutputStream() {
             override fun close() {
                 val written = toByteArray()

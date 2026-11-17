@@ -37,11 +37,13 @@ import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.MediaList
+import com.photoxt.core.model.PastePart
 import com.photoxt.core.model.SmartRule
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.organize.AlbumOptions
 import com.photoxt.core.organize.OwnAlbums
 import com.photoxt.core.transfer.Clip
+import com.photoxt.core.transfer.EditOps
 import com.photoxt.core.transfer.SystemClipboard
 import com.photoxt.core.transfer.Transfers
 import com.photoxt.core.ui.GridCell
@@ -140,6 +142,7 @@ class TimelineViewModel @AssistedInject constructor(
     private val driveAlbums: DriveAlbums,
     private val transfers: Transfers,
     private val systemClipboard: SystemClipboard,
+    private val editOps: EditOps,
     private val options: AlbumOptions,
     private val settings: SettingsStore,
     albumDao: AlbumDao,
@@ -405,6 +408,9 @@ class TimelineViewModel @AssistedInject constructor(
         mediaDao
     )
 
+    /** *Paste edits* onto the selection (spec §4.10, batch apply). */
+    val edits = TimelineEdits(selection, editOps)
+
     private companion object {
         const val TAG = "Timeline"
         const val PAGE_SIZE = 150
@@ -568,3 +574,22 @@ internal fun TimelineRow.toCell(): GridCell {
 }
 
 private const val HALF_TURN = 180
+
+/**
+ * *Paste edits* onto the selection (spec §4.10, batch apply): each selected photo keeps its own
+ * edit, with the copied look laid over it, through the transfer queue, where it can be undone.
+ */
+class TimelineEdits internal constructor(
+    private val selection: MutableStateFlow<Map<String, Long>>,
+    private val editOps: EditOps
+) {
+    /** Whether edits are copied, so there is something to paste. */
+    val canPaste: Flow<Boolean> get() = editOps.hasCopy
+
+    /** Queues the paste and ends the selection; false when no selected item is a photo. */
+    suspend fun paste(parts: Set<PastePart>, title: String): Boolean {
+        val queued = editOps.paste(selection.value.keys.toList(), parts, title) != null
+        if (queued) selection.value = emptyMap()
+        return queued
+    }
+}

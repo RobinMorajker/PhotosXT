@@ -115,6 +115,9 @@ internal fun ViewerBottomBar(actions: ChromeActions, modifier: Modifier = Modifi
             actions.onPanorama?.let {
                 BarAction(DesignR.drawable.ic_360, R.string.action_panorama, it)
             }
+            actions.edits.onEdit?.let {
+                BarAction(DesignR.drawable.ic_edit, R.string.action_edit, it)
+            }
             val organize = actions.organize
             val heart = if (organize.favorite) {
                 DesignR.drawable.ic_favorite_filled
@@ -176,6 +179,9 @@ private fun OverflowMenu(actions: ChromeActions) {
             MenuEntry(R.string.action_move_to_vault, pick(organize.onVault))
             MenuEntry(R.string.action_slideshow, pick(actions.onSlideshow))
             actions.onCompare?.let { MenuEntry(R.string.action_compare, pick(it)) }
+            actions.edits.onCopyEdits?.let { MenuEntry(R.string.action_copy_edits, pick(it)) }
+            actions.edits.onPasteEdits?.let { MenuEntry(R.string.action_paste_edits, pick(it)) }
+            actions.edits.onRevert?.let { MenuEntry(R.string.action_revert, pick(it)) }
             MenuEntry(R.string.action_open_with, pick(actions.onOpenWith))
             MenuEntry(R.string.action_set_as, pick(actions.onSetAs))
             MenuEntry(R.string.action_copy, pick(actions.onCopy))

@@ -11,6 +11,7 @@ import com.photoxt.core.media.ThumbnailStore
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.TransferState
 import com.photoxt.core.model.WaitFor
+import com.photoxt.core.render.PhotoExporter
 import com.photoxt.core.vault.Vault
 import java.io.IOException
 import java.time.Clock
@@ -45,11 +46,13 @@ class TransferEngine @Inject constructor(
     private val env: TransferEnvironment,
     private val clock: Clock,
     vault: Vault,
-    thumbnails: ThumbnailStore
+    thumbnails: ThumbnailStore,
+    exporter: PhotoExporter
 ) {
     private val dao = database.transferDao()
     private val copier = Copier(device, drive, env)
     private val vaultMoves = VaultMoves(database, copier, vault, thumbnails, clock)
+    private val edits = EditJobs(database.editDao(), copier, exporter, env.originalsDir, clock)
     private val mutex = Mutex()
     private val finishedBatches = MutableSharedFlow<Long>(extraBufferCapacity = EVENTS)
 
@@ -138,6 +141,12 @@ class TransferEngine @Inject constructor(
         )
 
         TransferOp.VAULT, TransferOp.UNVAULT -> vaultMoves.move(run)
+
+        TransferOp.EDIT -> edits.save(run)
+
+        TransferOp.EDIT_COPY -> edits.saveCopy(run)
+
+        TransferOp.REVERT -> edits.revert(run)
     }
 
     /** Favorites sync both ways (spec §4.8): MediaStore's flag, or Drive's star. */
@@ -280,6 +289,7 @@ class TransferEngine @Inject constructor(
         }
         if (end.state == TransferState.FAILED || end.state == TransferState.CANCELLED) {
             copier.discardPartial(run)
+            if (job.op in EDIT_OPS) edits.discard(run)
             unfavorited(job)
         }
         dao.settle(
@@ -327,6 +337,7 @@ class TransferEngine @Inject constructor(
     )
 
     private companion object {
+        val EDIT_OPS = setOf(TransferOp.EDIT, TransferOp.EDIT_COPY, TransferOp.REVERT)
         const val TAG = "TransferEngine"
         const val EVENTS = 16
         const val MAX_ATTEMPTS = 6

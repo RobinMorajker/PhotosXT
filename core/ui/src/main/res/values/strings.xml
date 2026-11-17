@@ -81,4 +81,17 @@
     <string name="lock_no_screen_lock">Set up a screen lock (PIN, pattern, password or fingerprint) to use Hidden and the vault.</string>
     <string name="lock_unlock">Unlock</string>
     <string name="lock_settings">Open security settings</string>
+    <!-- Edits (spec §4.10) -->
+    <plurals name="edit_paste_title">
+        <item quantity="one">Paste edits onto %1$d photo</item>
+        <item quantity="other">Paste edits onto %1$d photos</item>
+    </plurals>
+    <string name="edit_paste_look">Light, colour, detail, filter and retouch settings are pasted. Also paste:</string>
+    <string name="edit_paste_geometry">Crop, rotation and perspective</string>
+    <string name="edit_paste_overlays">Text, drawings and stickers</string>
+    <string name="edit_paste_frame">Frame and watermark</string>
+    <string name="edit_revert_title">Revert to the original?</string>
+    <string name="edit_revert_phone">The photo goes back to how it was before you edited it.</string>
+    <string name="edit_revert_drive">The original becomes the current version in Google Drive again.</string>
+    <string name="edit_revert">Revert</string>
 </resources>

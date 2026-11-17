@@ -226,6 +226,37 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun version6To7KeepsRowsAndAddsSavedEdits() {
+        helper.createDatabase(NAME, 6).use { db ->
+            db.execSQL(
+                "INSERT INTO album (id, type, sourceRef, title, pending, createdAt) VALUES " +
+                    "('device:1', 'DEVICE_FOLDER', 'external_primary:DCIM/Camera/', 'Camera', 0, 0)"
+            )
+            db.execSQL(
+                "INSERT INTO media (id, source, volume, contentUri, albumId, name, mime, kind, " +
+                    "bytes, width, height, rotation, takenAt, modifiedAt, dayKey, monthKey, " +
+                    "favorite) VALUES ('device:7', 'DEVICE', 'external_primary', " +
+                    "'content://media/external/images/media/7', 'device:1', 'IMG_7.jpg', " +
+                    "'image/jpeg', 'IMAGE', 100, 4000, 3000, 0, 5, 6, 0, 0, 1)"
+            )
+            db.execSQL("INSERT INTO pin VALUES ('ITEM', 'device:7', 1.0, 1)")
+        }
+
+        helper.runMigrationsAndValidate(NAME, 7, true).use { db ->
+            assertEquals(1, db.count("media"))
+            assertEquals(1, db.count("pin"))
+            db.execSQL(
+                "INSERT INTO edit_recipe (mediaId, opsJson, schemaVersion, originalPath, " +
+                    "originalMd5, originalBytes, originalMime, originalName, savedAt) VALUES " +
+                    "('device:7', '{}', 1, '/o', 'abc', 100, 'image/jpeg', 'IMG_7.jpg', 9)"
+            )
+            // No foreign key: an item in the trash keeps what reverts it.
+            db.execSQL("DELETE FROM media WHERE id = 'device:7'")
+            assertEquals(1, db.count("edit_recipe"))
+        }
+    }
+
     private fun SupportSQLiteDatabase.count(table: String): Int =
         query("SELECT COUNT(*) FROM $table").use { cursor ->
             cursor.moveToFirst()

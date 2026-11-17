@@ -31,21 +31,28 @@ import com.photoxt.core.database.AccountEntity
 import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.datastore.SyncSettings
 import com.photoxt.core.designsystem.R as DesignR
+import com.photoxt.core.ml.EraserModel
+import com.photoxt.core.ml.EraserModels
 import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.organize.SyncStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What the Settings screen shows. */
 data class SettingsUiState(
     val sync: SyncSettings = SyncSettings(),
     val status: SyncStatus? = null,
-    val accounts: List<AccountEntity> = emptyList()
+    val accounts: List<AccountEntity> = emptyList(),
+    val eraserModel: EraserModel = EraserModel.MIGAN,
+    val modelsOnDisk: Long = 0
 )
 
 /** Settings (spec §4.21): Drive sync's rules and settings sync (spec §4.8). */
@@ -53,14 +60,41 @@ data class SettingsUiState(
 class SettingsViewModel @Inject constructor(
     private val settings: SettingsStore,
     private val settingsSync: SettingsSync,
+    private val models: EraserModels,
     googleAccounts: GoogleAccounts
 ) : ViewModel() {
+    private val onDisk = MutableStateFlow(0L)
+
     val uiState: StateFlow<SettingsUiState> = combine(
         settings.settings,
         settingsSync.status,
-        googleAccounts.accounts
-    ) { all, status, accounts -> SettingsUiState(all.sync, status, accounts) }
+        googleAccounts.accounts,
+        onDisk
+    ) { all, status, accounts, bytes ->
+        val model = runCatching {
+            EraserModel.valueOf(all.editor.eraserModel)
+        }.getOrDefault(EraserModel.MIGAN)
+        SettingsUiState(all.sync, status, accounts, model, bytes)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_MS), SettingsUiState())
+
+    init {
+        viewModelScope.launch { onDisk.value = withContext(Dispatchers.IO) { models.sizeOnDisk() } }
+    }
+
+    /** The object eraser's model (spec §4.10); the other one's file stays until deleted. */
+    fun setEraserModel(model: EraserModel) {
+        viewModelScope.launch { settings.updateEditor { it.copy(eraserModel = model.name) } }
+    }
+
+    fun deleteModels() {
+        viewModelScope.launch {
+            onDisk.value = withContext(Dispatchers.IO) {
+                EraserModel.entries.forEach(models::delete)
+                models.sizeOnDisk()
+            }
+        }
+    }
 
     fun updateSync(transform: (SyncSettings) -> SyncSettings) {
         viewModelScope.launch { settings.updateSync(transform) }
@@ -130,6 +164,16 @@ fun SettingsScreen(onBack: () -> Unit, onOpenStorage: () -> Unit, modifier: Modi
             Column {
                 SectionTitle(stringResource(R.string.history_title))
                 HistoryControls(historyViewModel)
+            }
+        }
+        item(key = "editor") {
+            Column {
+                EditorSettings(
+                    state.eraserModel,
+                    state.modelsOnDisk,
+                    viewModel::setEraserModel,
+                    viewModel::deleteModels
+                )
             }
         }
         item(key = "settings-sync") {

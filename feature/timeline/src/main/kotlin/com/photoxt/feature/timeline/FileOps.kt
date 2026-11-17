@@ -37,11 +37,13 @@ import androidx.compose.ui.unit.dp
 import com.photoxt.core.designsystem.R as DesignR
 import com.photoxt.core.model.AlbumType
 import com.photoxt.core.model.ClipboardMode
+import com.photoxt.core.model.PastePart
 import com.photoxt.core.transfer.Clip
 import com.photoxt.core.transfer.RenamePattern
 import com.photoxt.core.ui.ConfirmDialog
 import com.photoxt.core.ui.NameDialog
 import com.photoxt.core.ui.PasteBar
+import com.photoxt.core.ui.PasteEditsDialog
 
 // File operations in a timeline (spec §4.7): the selection's actions, the paste bar, an album's
 // menu, and the dialogs they open.
@@ -59,6 +61,8 @@ data class SelectionCallbacks(
     val onCopyToClipboard: (() -> Unit)? = null,
     /** Set when exactly two items are selected. */
     val onCompare: (() -> Unit)? = null,
+    /** Set when edits are copied (spec §4.10, batch apply). */
+    val onPasteEdits: (() -> Unit)? = null,
     val organize: SelectionOrganizeCallbacks = SelectionOrganizeCallbacks()
 )
 
@@ -153,6 +157,7 @@ private fun MoreActions(actions: SelectionCallbacks) {
             MenuItem(R.string.action_rename) { close(actions.onRename) }
             MenuItem(R.string.action_convert_jpeg) { close(actions.onConvert) }
             MenuItem(R.string.action_export_pdf) { close(actions.onExportPdf) }
+            actions.onPasteEdits?.let { MenuItem(R.string.action_paste_edits) { close(it) } }
             actions.onCopyToClipboard?.let {
                 MenuItem(R.string.action_copy_to_clipboard) { close(it) }
             }
@@ -349,7 +354,7 @@ private fun AlbumOrganizeEntries(
 }
 
 /** The dialog a timeline has open. */
-internal enum class TimelineDialog { DELETE, RENAME_ITEMS, NEW_FOLDER, RENAME_ALBUM }
+internal enum class TimelineDialog { DELETE, RENAME_ITEMS, NEW_FOLDER, RENAME_ALBUM, PASTE_EDITS }
 
 /** The open dialog's content; each one closes itself through [onDismiss]. */
 @Composable
@@ -361,6 +366,7 @@ internal fun TimelineDialogs(
     onRename: (pattern: String) -> Unit,
     onNewFolder: (name: String) -> Unit,
     onRenameAlbum: (name: String) -> Unit,
+    onPasteEdits: (Set<PastePart>) -> Unit,
     onDismiss: () -> Unit
 ) {
     when (dialog) {
@@ -406,6 +412,12 @@ internal fun TimelineDialogs(
                 onDismiss()
                 onRenameAlbum(it)
             },
+            onDismiss = onDismiss
+        )
+
+        TimelineDialog.PASTE_EDITS -> PasteEditsDialog(
+            count = selected,
+            onPaste = onPasteEdits,
             onDismiss = onDismiss
         )
 

@@ -1,5 +1,10 @@
 # Overrides on top of detekt's default rules (buildUponDefaultConfig = true).
 complexity:
+  # An exhaustive `when` over an enum that gives each entry one value or one call (a tool's
+  # label, the handler of an operation) is a table, not a tangle of branches: such entries
+  # do not count. The editor's 15 tools made every such table trip the default.
+  CyclomaticComplexMethod:
+    ignoreSimpleWhenEntries: true
   # Compose components take flat parameter lists (Compose API guidelines).
   # Retrofit methods take one parameter per Drive query parameter, and a Room query one per bound
   # column. A Hilt constructor lists the class's collaborators; review judges those, not a count.

@@ -41,6 +41,16 @@ class FakeDrive : Dispatcher() {
         var md5: String? = md5(content),
         var modifiedTime: String = MODIFIED_TIME,
         var starred: Boolean = false
+    ) {
+        /** Every version of the content, oldest first; the last is the head (spec §4.10). */
+        val revisions = mutableListOf(Revision("r1", content.copyOf(), md5(content)))
+    }
+
+    class Revision(
+        val id: String,
+        val content: ByteArray,
+        val md5: String,
+        var keepForever: Boolean = false
     )
 
     val server = MockWebServer().also { it.dispatcher = this }
@@ -77,9 +87,12 @@ class FakeDrive : Dispatcher() {
         val metadata: JsonObject,
         val size: Long,
         val mime: String,
-        val buffer: Buffer = Buffer(),
-        var fileId: String? = null
-    )
+        var fileId: String? = null,
+        /** A new revision of this file, not a new file. */
+        val target: String? = null
+    ) {
+        val buffer = Buffer()
+    }
 
     fun start() = server.start()
 
@@ -132,6 +145,39 @@ class FakeDrive : Dispatcher() {
 
             request.method == "POST" && segments.size == 5 && segments[4] == "copy" ->
                 copy(account, segments[3], body(request))
+
+            segments.size == 6 && segments[4] == "revisions" -> {
+                val file = visible(account, segments[3]) ?: return status(404)
+                val revision =
+                    file.revisions.firstOrNull { it.id == segments[5] } ?: return status(404)
+                when {
+                    request.method == "PATCH" -> {
+                        revision.keepForever =
+                            body(request)["keepForever"]?.jsonPrimitive?.content == "true"
+                        json(revision.json())
+                    }
+
+                    url.queryParameter("alt") == "media" -> media(revision.content, request)
+
+                    else -> json(revision.json())
+                }
+            }
+
+            request.method == "PATCH" && path.startsWith("/upload/drive/v3/files/") -> {
+                visible(account, segments[4]) ?: return status(404)
+                val id = "s${counter.incrementAndGet()}"
+                sessions[id] = Session(
+                    account,
+                    body(request),
+                    request.headers["X-Upload-Content-Length"]!!.toLong(),
+                    request.headers["X-Upload-Content-Type"]!!,
+                    target = segments[4]
+                )
+                MockResponse.Builder().setHeader(
+                    "Location",
+                    server.url("/upload/session/$id")
+                ).build()
+            }
 
             request.method == "GET" && path.startsWith("/drive/v3/files/") -> {
                 val file = visible(account, segments[3]) ?: return status(404)
@@ -269,13 +315,16 @@ class FakeDrive : Dispatcher() {
         return if (remove != null && id in notOwned) status(204) else json(file.json())
     }
 
-    private fun media(file: File, request: RecordedRequest): MockResponse {
+    private fun media(file: File, request: RecordedRequest): MockResponse =
+        media(file.content, request)
+
+    private fun media(content: ByteArray, request: RecordedRequest): MockResponse {
         val range = request.headers["Range"]
         ranges += range
         val from = range?.removePrefix("bytes=")?.substringBefore('-')?.toInt() ?: 0
         return MockResponse.Builder()
             .code(if (range != null) 206 else 200)
-            .body(Buffer().write(file.content, from, file.content.size - from))
+            .body(Buffer().write(content, from, content.size - from))
             .build()
     }
 
@@ -305,6 +354,15 @@ class FakeDrive : Dispatcher() {
                 .build()
         }
         val metadata = session.metadata
+        session.target?.let { targetId ->
+            val existing = files.getValue(targetId)
+            val content = session.buffer.readByteArray()
+            existing.content = content
+            existing.md5 = if (corruptUploads) "0000" else md5(content)
+            existing.revisions += Revision("r${existing.revisions.size + 1}", content, md5(content))
+            session.fileId = targetId
+            return json(existing.json())
+        }
         val id = metadata.string("id") ?: "f${counter.incrementAndGet()}"
         if (files.containsKey(id)) return status(409)
         val content = session.buffer.readByteArray()
@@ -336,7 +394,17 @@ class FakeDrive : Dispatcher() {
             if (mime != FOLDER) put("size", JsonPrimitive(content.size.toString()))
             md5?.let { put("md5Checksum", JsonPrimitive(it)) }
             if (trashed) put("trashedTime", JsonPrimitive("2026-11-01T10:00:00Z"))
+            if (mime != FOLDER) put("headRevisionId", JsonPrimitive(revisions.last().id))
         }
+    ).toString()
+
+    private fun Revision.json(): String = JsonObject(
+        mapOf(
+            "id" to JsonPrimitive(id),
+            "md5Checksum" to JsonPrimitive(md5),
+            "size" to JsonPrimitive(content.size.toString()),
+            "keepForever" to JsonPrimitive(keepForever)
+        )
     ).toString()
 
     private fun body(request: RecordedRequest): JsonObject = request.body?.utf8()?.takeIf {

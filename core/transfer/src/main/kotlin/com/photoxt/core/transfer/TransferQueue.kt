@@ -338,6 +338,22 @@ class TransferQueue @Inject constructor(
                 }
             }
 
+            // Undo of a save brings back what the item was: its previous edit, or the original.
+            TransferOp.EDIT -> {
+                val previous = job.saved.previous
+                if (previous == null) {
+                    listOf(Planned(TransferOp.REVERT, was, null))
+                } else {
+                    listOf(
+                        Planned(
+                            TransferOp.EDIT,
+                            was,
+                            Destination(was.source, was.name, edit = EditPayload(previous))
+                        )
+                    )
+                }
+            }
+
             else -> emptyList()
         }
     }

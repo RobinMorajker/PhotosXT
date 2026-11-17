@@ -135,4 +135,6 @@
     <string name="delete_own_album_title">Delete this album?</string>
     <string name="delete_own_album_body">Only the album goes. Its photos and videos stay where they are.</string>
     <string name="hidden_album_shown">This album is hidden. It shows only in Hidden.</string>
+    <string name="action_paste_edits">Paste edits</string>
+    <string name="paste_edits_none">None of these is a photo to paste edits onto.</string>
 </resources>

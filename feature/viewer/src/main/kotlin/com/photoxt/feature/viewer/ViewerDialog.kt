@@ -5,13 +5,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.photoxt.core.database.ViewerItem
+import com.photoxt.core.model.SourceType
 import com.photoxt.core.ui.BookmarkDialog
 import com.photoxt.core.ui.ConfirmDialog
 import com.photoxt.core.ui.NameDialog
+import com.photoxt.core.ui.PasteEditsDialog
 import com.photoxt.core.ui.PickAlbumDialog
+import com.photoxt.core.ui.RevertEditsDialog
 
 /** The organising dialog the viewer has open (spec §4.8). */
-internal enum class ViewerDialog { BOOKMARK, ADD_TO_ALBUM, NEW_ALBUM, VAULT }
+internal enum class ViewerDialog {
+    BOOKMARK,
+    ADD_TO_ALBUM,
+    NEW_ALBUM,
+    VAULT,
+    PASTE_EDITS,
+    REVERT_EDITS
+}
 
 /** The open dialog's content about [item]; each closes itself through [onDismiss]. */
 @Composable
@@ -19,6 +29,7 @@ internal fun ViewerDialogs(
     dialog: ViewerDialog,
     item: ViewerItem,
     organize: ViewerOrganize,
+    edits: ViewerEdits,
     onOpen: (ViewerDialog) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -67,6 +78,16 @@ internal fun ViewerDialogs(
                 onDismiss()
                 organize.moveToVault(item)
             },
+            onDismiss = onDismiss
+        )
+
+        ViewerDialog.PASTE_EDITS -> PasteEditsDialog(count = 1, onPaste = {
+            edits.paste(item, it)
+        }, onDismiss = onDismiss)
+
+        ViewerDialog.REVERT_EDITS -> RevertEditsDialog(
+            drive = item.source == SourceType.DRIVE,
+            onRevert = { edits.revert(item) },
             onDismiss = onDismiss
         )
     }

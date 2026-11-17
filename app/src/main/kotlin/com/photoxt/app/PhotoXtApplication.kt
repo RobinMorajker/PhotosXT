@@ -24,6 +24,7 @@ import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.sync.DriveSync
 import com.photoxt.core.transfer.DriveLinkThumbnailFetcher
 import com.photoxt.core.transfer.DriveLinkThumbnailKeyer
+import com.photoxt.core.transfer.EditCleanup
 import com.photoxt.core.transfer.TransferQueue
 import com.photoxt.core.vault.Vault
 import com.photoxt.core.vault.VaultImageFetcher
@@ -64,6 +65,9 @@ class PhotoXtApplication :
     @Inject
     lateinit var vault: Vault
 
+    @Inject
+    lateinit var editCleanup: EditCleanup
+
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) enableStrictMode()
@@ -74,6 +78,8 @@ class PhotoXtApplication :
         // Settings sync and the history's auto-delete (spec §4.8, §4.9).
         settingsSync.start()
         history.start()
+        // Kept originals of photos gone for good, and unused edit assets (spec §4.10).
+        editCleanup.start()
     }
 
     /**

@@ -311,6 +311,9 @@ private val TransferOp.message: Int?
         TransferOp.MKDIR, TransferOp.REMOVE_FROM_ALBUM -> R.plurals.transfer_removed
         TransferOp.VAULT -> R.plurals.transfer_vaulted
         TransferOp.UNVAULT -> R.plurals.transfer_unvaulted
+        TransferOp.EDIT -> R.plurals.transfer_edited
+        TransferOp.EDIT_COPY -> R.plurals.transfer_edit_copied
+        TransferOp.REVERT -> R.plurals.transfer_reverted
         TransferOp.FAVORITE, TransferOp.UNFAVORITE -> null
     }
 

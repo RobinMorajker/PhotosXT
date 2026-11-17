@@ -65,6 +65,7 @@ import com.photoxt.core.model.MediaAccess
 import com.photoxt.core.model.MediaFilter
 import com.photoxt.core.model.MediaList
 import com.photoxt.core.model.PINNED_KEY
+import com.photoxt.core.model.PastePart
 import com.photoxt.core.model.ViewerStart
 import com.photoxt.core.transfer.PasteException
 import com.photoxt.core.transfer.PasteProblem
@@ -213,6 +214,7 @@ private fun TimelineScreen(
         onRename = { viewModel.fileOps.rename(it, selectionTitle) },
         onNewFolder = fileOps.newFolder,
         onRenameAlbum = fileOps.renameAlbum,
+        onPasteEdits = fileOps.pasteEdits,
         onDismiss = { dialog = null }
     )
 }
@@ -289,6 +291,7 @@ private fun selectionCallbacks(
     fileOps: FileOps,
     onDialog: (TimelineDialog) -> Unit
 ): SelectionCallbacks {
+    val canPasteEdits by viewModel.edits.canPaste.collectAsStateWithLifecycle(false)
     val compare: () -> Unit = {
         viewModel.fileOps.comparePair()?.let { (newer, older) ->
             viewModel.setSelection(emptyMap())
@@ -304,7 +307,8 @@ private fun selectionCallbacks(
         onConvert = fileOps.convert,
         onExportPdf = fileOps.exportPdf,
         onCopyToClipboard = fileOps.copyToClipboard.takeIf { selected == 1 },
-        onCompare = compare.takeIf { selected == 2 }
+        onCompare = compare.takeIf { selected == 2 },
+        onPasteEdits = { onDialog(TimelineDialog.PASTE_EDITS) }.takeIf { canPasteEdits }
     )
 }
 
@@ -312,6 +316,7 @@ private fun selectionCallbacks(
 private data class FileOps(
     val paste: () -> Unit,
     val convert: () -> Unit,
+    val pasteEdits: (Set<PastePart>) -> Unit,
     val exportPdf: () -> Unit,
     val copyToClipboard: () -> Unit,
     val newFolder: (String) -> Unit,
@@ -340,6 +345,12 @@ private fun rememberFileOps(
         convert = {
             scope.launch {
                 if (!ops.convert(title)) toast(resources.getString(R.string.convert_none))
+            }
+        },
+        pasteEdits = { parts ->
+            scope.launch {
+                val queued = viewModel.edits.paste(parts, title)
+                if (!queued) toast(resources.getString(R.string.paste_edits_none))
             }
         },
         exportPdf = rememberPdfExport(ops, ::toast),
@@ -371,9 +382,7 @@ private fun rememberFileOps(
                 if (ops.renameAlbum(name) != null && viewModel.isPhoneAlbum) onBack?.invoke()
             }
         },
-        selectionTitle = { count ->
-            resources.getQuantityString(R.plurals.clip_items, count, count)
-        }
+        selectionTitle = { resources.getQuantityString(R.plurals.clip_items, it, it) }
     )
 }
 

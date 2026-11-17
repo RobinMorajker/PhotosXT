@@ -36,9 +36,29 @@ data class PxtSettings(
     val sync: SyncSettings = SyncSettings(),
     val view: ViewSettings = ViewSettings(),
     val organize: OrganizeSettings = OrganizeSettings(),
+    val editor: EditorSettings = EditorSettings(),
     /** This phone's own state: never synced. */
     val device: DeviceState = DeviceState()
 )
+
+/**
+ * The editor's settings (spec §4.10): the object eraser's model (Robin, 2026-11-16: both, with
+ * a switch), presets the user saved, imported LUTs and stickers by their asset names, and the
+ * last *Save as copy* choices. The asset files themselves stay on this phone.
+ */
+@Serializable
+data class EditorSettings(
+    /** An `EraserModel` name (core/ml): MIGAN or LAMA. */
+    val eraserModel: String = "MIGAN",
+    val presets: List<com.photoxt.core.model.EditPreset> = emptyList(),
+    val luts: List<LutEntry> = emptyList(),
+    val stickers: List<String> = emptyList(),
+    val export: com.photoxt.core.model.ExportOptions = com.photoxt.core.model.ExportOptions()
+)
+
+/** An imported `.cube` LUT: what the user calls it and its asset. */
+@Serializable
+data class LutEntry(val name: String, val asset: String)
 
 /**
  * Sort choices (spec §4.2, Scope): the Albums tab and Pictures keep one each; albums keep their
@@ -185,6 +205,9 @@ class SettingsStore(private val store: DataStore<PxtSettings>) {
 
     suspend fun updateDevice(transform: (DeviceState) -> DeviceState) =
         update { it.copy(device = transform(it.device)) }
+
+    suspend fun updateEditor(transform: (EditorSettings) -> EditorSettings) =
+        update { it.copy(editor = transform(it.editor)) }
 }
 
 /** Settings as settings sync sends them (spec §4.8): JSON, without this phone's own state. */

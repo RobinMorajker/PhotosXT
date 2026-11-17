@@ -31,6 +31,9 @@ class DriveFiles @Inject constructor(
 ) {
     private val api get() = http.api
 
+    /** The file's versions, which edits write and Revert reads (spec §4.10). */
+    val revisions = DriveRevisions(http)
+
     /** A file id made in advance, so creating the file twice is impossible. */
     suspend fun newId(account: String): String =
         api.generateIds(DriveAccount(account), count = 1).ids.first()
@@ -148,14 +151,15 @@ class DriveFiles @Inject constructor(
     /** The original PhotoXT already downloaded and checked for [mediaId], if any. */
     suspend fun cachedOriginal(mediaId: String): File? = originals.localFile(mediaId)
 
-    private class ResponseStream(private val response: Response) :
-        FilterInputStream(response.body.byteStream()) {
-        override fun close() = response.close()
-    }
-
     private companion object {
         const val HTTP_NOT_FOUND = 404
     }
+}
+
+/** A response's body as a stream that closes the response with it. */
+internal class ResponseStream(private val response: Response) :
+    FilterInputStream(response.body.byteStream()) {
+    override fun close() = response.close()
 }
 
 /** Skips exactly [count] bytes, or fails if the stream ends first. */

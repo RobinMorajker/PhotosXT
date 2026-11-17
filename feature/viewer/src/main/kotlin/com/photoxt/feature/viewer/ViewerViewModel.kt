@@ -86,7 +86,8 @@ class ViewerViewModel @AssistedInject constructor(
     private val transfers: Transfers,
     private val systemClipboard: SystemClipboard,
     private val ownAlbums: OwnAlbums,
-    organizeParts: ViewerOrganizeParts
+    organizeParts: ViewerOrganizeParts,
+    editParts: ViewerEditParts
 ) : ViewModel() {
     @AssistedFactory
     interface Factory {
@@ -276,6 +277,9 @@ class ViewerViewModel @AssistedInject constructor(
 
     /** Delete, and Copy for a Drive photo (spec §4.7). */
     val fileOps = ViewerFileOps(viewModelScope, transfers, systemClipboard)
+
+    /** Copy and paste edits, and Revert (spec §4.10). */
+    val edits = ViewerEdits(viewModelScope, editParts)
 
     private companion object {
         const val TRAIT_PAGES = 24

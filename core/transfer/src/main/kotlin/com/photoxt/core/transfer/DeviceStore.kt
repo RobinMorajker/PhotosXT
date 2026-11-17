@@ -1,9 +1,11 @@
 package com.photoxt.core.transfer
 
+import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
@@ -119,8 +121,23 @@ class MediaStoreDevice @Inject constructor(@param:ApplicationContext private val
         }
     }
 
-    override fun open(uri: String): InputStream =
-        resolver.openInputStream(uri.toUri()) ?: throw FileNotFoundException("No such item")
+    /**
+     * The item's bytes as stored. With `ACCESS_MEDIA_LOCATION`, through MediaStore's original
+     * URI: otherwise MediaStore strips the location from photos it hands out, and a copy, a cut
+     * or a kept original would lose it (spec §0 rule 4).
+     */
+    override fun open(uri: String): InputStream {
+        val item = uri.toUri()
+        if (readsLocation()) {
+            runCatching { resolver.openInputStream(MediaStore.setRequireOriginal(item)) }
+                .getOrNull()?.let { return it }
+        }
+        return resolver.openInputStream(item) ?: throw FileNotFoundException("No such item")
+    }
+
+    private fun readsLocation(): Boolean =
+        context.checkSelfPermission(Manifest.permission.ACCESS_MEDIA_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
 
     override fun create(
         volume: String,

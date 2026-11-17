@@ -170,6 +170,10 @@ data class SlideshowKey(
     val start: ViewerStart get() = ViewerStart(albumId, filter, index, id, sort, list)
 }
 
+/** The image editor on photo [mediaId] (spec §4.10). */
+@Serializable
+data class EditorKey(val mediaId: String) : NavKey
+
 /** A vault item full screen, the [index]th of the vault (spec §4.8). */
 @Serializable
 data class VaultViewerKey(val index: Int) : NavKey

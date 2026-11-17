@@ -55,6 +55,15 @@ class DriveHttp(private val tokens: DriveTokens, val baseUrl: HttpUrl = DEFAULT_
         .addQueryParameter("supportsAllDrives", "true")
         .build()
 
+    /** The URL of one revision's bytes, for bringing an original back (spec §4.10). */
+    fun revisionUrl(fileId: String, revisionId: String): HttpUrl = baseUrl.newBuilder()
+        .addPathSegments("drive/v3/files")
+        .addPathSegment(fileId)
+        .addPathSegment("revisions")
+        .addPathSegment(revisionId)
+        .addQueryParameter("alt", "media")
+        .build()
+
     /**
      * Opens [url] for [accountId], from byte [offset] to [end] inclusive (an HTTP Range request;
      * to the end of the file when [end] is null). The caller closes the response. Throws

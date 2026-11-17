@@ -291,6 +291,9 @@ private val TransferOp.label: Int
         TransferOp.UNFAVORITE -> R.string.transfer_op_unfavorite
         TransferOp.VAULT -> R.string.transfer_op_vault
         TransferOp.UNVAULT -> R.string.transfer_op_unvault
+        TransferOp.EDIT -> R.string.transfer_op_edit
+        TransferOp.EDIT_COPY -> R.string.transfer_op_edit_copy
+        TransferOp.REVERT -> R.string.transfer_op_revert
     }
 
 private val TransferOp.icon: Int
@@ -317,4 +320,8 @@ private val TransferOp.icon: Int
         TransferOp.VAULT -> DesignR.drawable.ic_lock
 
         TransferOp.UNVAULT -> DesignR.drawable.ic_lock_open
+
+        TransferOp.EDIT, TransferOp.EDIT_COPY -> DesignR.drawable.ic_tune
+
+        TransferOp.REVERT -> DesignR.drawable.ic_history
     }

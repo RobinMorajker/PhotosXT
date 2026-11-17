@@ -29,7 +29,9 @@ import com.photoxt.core.auth.DriveAuth
 import com.photoxt.core.auth.DriveScope
 import com.photoxt.core.common.PxtLog
 import com.photoxt.core.database.PxtDatabase
+import com.photoxt.core.model.Ellipse01
 import com.photoxt.core.model.TransferOp
+import com.photoxt.core.render.PhotoFinder
 import com.photoxt.core.sync.DeviceConditions
 import com.photoxt.core.sync.DriveSync
 import dagger.Binds
@@ -307,6 +309,8 @@ class TransferNotifications @Inject constructor(
         TransferOp.COPY -> R.string.transfer_notification_copying
         TransferOp.MOVE -> R.string.transfer_notification_moving
         TransferOp.CONVERT -> R.string.transfer_notification_converting
+        TransferOp.EDIT, TransferOp.EDIT_COPY -> R.string.transfer_notification_editing
+        TransferOp.REVERT -> R.string.transfer_notification_reverting
         else -> R.string.transfer_notification_updating
     }
 
@@ -327,7 +331,8 @@ class AppTransferEnvironment @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val auth: DriveAuth,
     private val conditions: DeviceConditions,
-    private val sync: DriveSync
+    private val sync: DriveSync,
+    private val finder: PhotoFinder
 ) : TransferEnvironment {
     override suspend fun canWriteDrive(account: String): Boolean =
         auth.hasScope(account, DriveScope.FULL)
@@ -335,6 +340,16 @@ class AppTransferEnvironment @Inject constructor(
     override val online: Boolean get() = conditions.online.value
 
     override val workDir: File get() = File(context.filesDir, "transfers")
+
+    override val originalsDir: File get() = File(context.filesDir, "edits/originals")
+
+    override val readsOriginals: Boolean
+        get() = context.checkSelfPermission(android.Manifest.permission.ACCESS_MEDIA_LOCATION) ==
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
+    override suspend fun subjectMask(photo: File): String? = finder.subjectMask(photo)
+
+    override suspend fun faces(photo: File): List<Ellipse01> = finder.faces(photo)
 
     override suspend fun driveWritten(account: String) {
         sync.syncAfterWrite(account)

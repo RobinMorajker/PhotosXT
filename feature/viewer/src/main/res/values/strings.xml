@@ -20,6 +20,11 @@
     <string name="action_always">Always</string>
     <string name="saver_question">On mobile data</string>
     <string name="copied">Copied</string>
+    <string name="action_edit">Edit</string>
+    <string name="action_copy_edits">Copy edits</string>
+    <string name="action_paste_edits">Paste edits</string>
+    <string name="action_revert">Revert to original</string>
+    <string name="edits_copied">Edits copied</string>
 
     <string name="mode_fit">Fit</string>
     <string name="mode_fill">Fill</string>

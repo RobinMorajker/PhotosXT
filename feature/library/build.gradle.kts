@@ -13,6 +13,7 @@ android {
 
 dependencies {
     implementation(project(":core:designsystem"))
+    implementation(project(":core:ml"))
     implementation(project(":core:organize"))
     implementation(project(":core:sync"))
     implementation(project(":core:transfer"))

@@ -73,7 +73,9 @@ class ViewerNavigation(
     val onPlay: (mediaId: String) -> Unit,
     val onSlideshow: (ViewerStart) -> Unit,
     val onCompare: (firstId: String, secondId: String) -> Unit,
-    val onPanorama: (contentUri: String, Panorama) -> Unit
+    val onPanorama: (contentUri: String, Panorama) -> Unit,
+    /** Opens the photo in the editor (spec §4.10). */
+    val onEdit: (mediaId: String) -> Unit = {}
 )
 
 /**
@@ -213,7 +215,10 @@ private fun ViewerBody(parts: ViewerParts, close: () -> Unit, navigation: Viewer
     }
     ui.details?.let { item -> DetailsSheet(item, viewModel::details) { ui.details = null } }
     ui.dialog?.let { (dialog, item) ->
-        ViewerDialogs(dialog, item, viewModel.organize, onOpen = { ui.dialog = it to item }) {
+        ViewerDialogs(dialog, item, viewModel.organize, viewModel.edits, onOpen = {
+            ui.dialog =
+                it to item
+        }) {
             ui.dialog = null
         }
     }
@@ -388,7 +393,16 @@ internal data class ChromeActions(
     val onOffline: (Boolean) -> Unit = {},
     /** Moves the item to the trash (spec §4.7); the app offers Undo. */
     val onDelete: () -> Unit = {},
-    val organize: ViewerOrganizeActions = ViewerOrganizeActions()
+    val organize: ViewerOrganizeActions = ViewerOrganizeActions(),
+    val edits: ViewerEditActions = ViewerEditActions()
+)
+
+/** Edit, and for a photo with a saved edit or with edits copied, the rest (spec §4.10). */
+internal data class ViewerEditActions(
+    val onEdit: (() -> Unit)? = null,
+    val onCopyEdits: (() -> Unit)? = null,
+    val onPasteEdits: (() -> Unit)? = null,
+    val onRevert: (() -> Unit)? = null
 )
 
 /** The viewer's organising actions (spec §4.8). */

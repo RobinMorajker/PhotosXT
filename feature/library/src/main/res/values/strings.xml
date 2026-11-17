@@ -60,6 +60,9 @@
     <string name="transfer_op_unfavorite">Remove %1$s from favorites</string>
     <string name="transfer_op_vault">Move %1$s to the vault</string>
     <string name="transfer_op_unvault">Move %1$s out of the vault</string>
+    <string name="transfer_op_edit">Save edits to %1$s</string>
+    <string name="transfer_op_edit_copy">Save an edited copy of %1$s</string>
+    <string name="transfer_op_revert">Revert %1$s to the original</string>
     <string name="transfer_paused">Paused</string>
     <string name="transfer_waiting">Waiting for your answer</string>
     <string name="transfer_cancelled">Cancelled</string>
@@ -247,4 +250,10 @@
     <!-- %1$s is an email address, %2$s when ("5 minutes ago"). -->
     <string name="settings_sync_done">Saved to %1$s, %2$s</string>
     <string name="settings_sync_waiting">Saves to %1$s</string>
+    <string name="settings_editor">Editor</string>
+    <string name="settings_eraser_model">Object eraser model</string>
+    <string name="settings_model_migan">MI-GAN: fast, a %1$s download</string>
+    <string name="settings_model_lama">LaMa: best quality, a %1$s download</string>
+    <string name="settings_models_delete">Delete downloaded models</string>
+    <string name="settings_models_size">%1$s on this phone. The eraser downloads its model again when needed.</string>
 </resources>

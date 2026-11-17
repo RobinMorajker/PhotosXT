@@ -14,6 +14,7 @@ android {
 dependencies {
     api(project(":core:sync"))
     api(project(":core:vault"))
+    api(project(":core:render"))
     implementation(project(":core:common"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.exifinterface)

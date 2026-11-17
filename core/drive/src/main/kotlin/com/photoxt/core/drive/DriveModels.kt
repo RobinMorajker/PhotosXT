@@ -58,6 +58,29 @@ data class DriveFileWrite(
 @Serializable
 data class GeneratedIds(val ids: List<String> = emptyList())
 
+/** A file's head revision and checksum. */
+@Serializable
+data class DriveHead(
+    val id: String,
+    val headRevisionId: String? = null,
+    val md5Checksum: String? = null,
+    val size: String? = null
+)
+
+/** One revision of a file's content (spec §4.10, Revert). */
+@Serializable
+data class DriveRevision(
+    val id: String,
+    val md5Checksum: String? = null,
+    val size: String? = null,
+    val keepForever: Boolean = false,
+    val mimeType: String? = null,
+    val modifiedTime: String? = null
+)
+
+@Serializable
+data class DriveRevisionWrite(val keepForever: Boolean)
+
 @Serializable
 data class ImageMetadata(
     val width: Int? = null,

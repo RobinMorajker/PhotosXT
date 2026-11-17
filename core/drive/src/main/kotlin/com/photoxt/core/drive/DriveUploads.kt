@@ -45,15 +45,40 @@ class DriveUploads(private val http: DriveHttp) {
         metadata: DriveFileWrite,
         mime: String,
         size: Long
+    ): UploadSession = open(accountId, metadata, mime, size, fileId = null)
+
+    /**
+     * Opens a session that gives existing file [fileId] new content: a new revision of the same
+     * file, as an edit saves (spec §4.10). [metadata] may change its name and type with it.
+     */
+    suspend fun startRevision(
+        accountId: String,
+        fileId: String,
+        metadata: DriveFileWrite,
+        mime: String,
+        size: Long
+    ): UploadSession = open(accountId, metadata, mime, size, fileId)
+
+    private suspend fun open(
+        accountId: String,
+        metadata: DriveFileWrite,
+        mime: String,
+        size: Long,
+        fileId: String?
     ): UploadSession {
         val body = DriveHttp.json.encodeToString(DriveFileWrite.serializer(), metadata)
             .toRequestBody(JSON)
+        val target = if (fileId == null) {
+            uploadUrl
+        } else {
+            uploadUrl.newBuilder().addPathSegment(fileId).build()
+        }
         val request = Request.Builder()
-            .url(uploadUrl)
+            .url(target)
             .tag(DriveAccount::class.java, DriveAccount(accountId))
             .header("X-Upload-Content-Type", mime)
             .header("X-Upload-Content-Length", size.toString())
-            .post(body)
+            .apply { if (fileId == null) post(body) else patch(body) }
             .build()
         val url = client.newCall(request).await().use { response ->
             if (!response.isSuccessful) throw DriveHttpException(response.code)

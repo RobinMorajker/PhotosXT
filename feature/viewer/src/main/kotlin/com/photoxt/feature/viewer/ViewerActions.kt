@@ -1,7 +1,9 @@
 package com.photoxt.feature.viewer
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,7 +79,35 @@ internal fun chromeActions(
         offline = pinned,
         onOffline = { on -> drive?.let { viewModel.setPinned(it, on) } },
         onDelete = { current?.let(viewModel.fileOps::delete) },
-        organize = organizeActions(viewModel.organize, current, onDialog)
+        organize = organizeActions(viewModel.organize, current, onDialog),
+        edits = editActions(context, viewModel.edits, current, navigation, onDialog)
+    )
+}
+
+@Composable
+private fun editActions(
+    context: Context,
+    edits: ViewerEdits,
+    current: ViewerItem?,
+    navigation: ViewerNavigation,
+    onDialog: (ViewerDialog, ViewerItem) -> Unit
+): ViewerEditActions {
+    val photo = current?.takeIf { it.kind == MediaKind.IMAGE } ?: return ViewerEditActions()
+    val edited by remember(photo.id) { edits.edited(photo.id) }.collectAsStateWithLifecycle(false)
+    val canPaste by edits.canPaste.collectAsStateWithLifecycle(false)
+    return ViewerEditActions(
+        onEdit = { navigation.onEdit(photo.id) },
+        onCopyEdits = if (edited) {
+            {
+                edits.copy(photo) {
+                    Toast.makeText(context, R.string.edits_copied, Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else {
+            null
+        },
+        onPasteEdits = if (canPaste) ({ onDialog(ViewerDialog.PASTE_EDITS, photo) }) else null,
+        onRevert = if (edited) ({ onDialog(ViewerDialog.REVERT_EDITS, photo) }) else null
     )
 }
 

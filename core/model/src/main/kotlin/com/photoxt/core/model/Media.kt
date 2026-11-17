@@ -127,7 +127,19 @@ enum class TransferOp {
     VAULT,
 
     /** Out of the vault, back to the phone. */
-    UNVAULT
+    UNVAULT,
+
+    /**
+     * An edit saved over the item (spec §4.10, *Save*): the original kept first (a copy in app
+     * storage, or its Drive revision kept forever), then the edit written in its place.
+     */
+    EDIT,
+
+    /** An edit saved as a new file beside the item (*Save as copy*). */
+    EDIT_COPY,
+
+    /** The original brought back, byte for byte (*Revert to original*). */
+    REVERT
 }
 
 /**

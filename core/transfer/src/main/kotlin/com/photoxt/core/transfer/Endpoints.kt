@@ -3,6 +3,7 @@ package com.photoxt.core.transfer
 import com.photoxt.core.database.AlbumEntity
 import com.photoxt.core.database.MediaEntity
 import com.photoxt.core.database.TransferJobEntity
+import com.photoxt.core.model.ExportOptions
 import com.photoxt.core.model.SourceType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -54,7 +55,9 @@ data class Destination(
     /** The new name of a rename or conversion; else the item keeps its own. */
     val name: String? = null,
     /** A new top-level Drive folder becomes a tracked album once made (*New album*). */
-    val track: Boolean = false
+    val track: Boolean = false,
+    /** What an edit job renders (spec §4.10). */
+    val edit: EditPayload? = null
 ) {
     val isDrive: Boolean get() = source == SourceType.DRIVE
 }
@@ -81,7 +84,29 @@ data class JobProgress(
     /** The phone item MediaStore wants the user's consent for. */
     val consentUri: String? = null,
     /** A Drive file the user may not bin leaves its folder instead (their choice). */
-    val removeInstead: Boolean = false
+    val removeInstead: Boolean = false,
+    /** Edits: the original kept on the phone, its checksum and, for Drive, its revision. */
+    val original: String? = null,
+    val originalMd5: String? = null,
+    val revision: String? = null,
+    /** Edits: the rendered file waiting to be written, and its checksum. */
+    val rendered: String? = null,
+    val renderedMd5: String? = null,
+    /** Edits: the recipe the item had before this save, which Undo puts back. */
+    val previous: String? = null,
+    /** Edits: the recipe as rendered, with what it found again in this photo (a paste). */
+    val recipe: String? = null
+)
+
+/**
+ * An edit job's work (spec §4.10): the recipe as JSON, how to write it, and for *Save as copy*
+ * the new file's name.
+ */
+@Serializable
+data class EditPayload(
+    val recipe: String,
+    val options: ExportOptions = ExportOptions(),
+    val name: String? = null
 )
 
 internal val TransferJson = Json {

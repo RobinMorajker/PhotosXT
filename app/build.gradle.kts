@@ -49,6 +49,7 @@ dependencies {
     implementation(project(":core:transfer"))
     implementation(project(":core:ui"))
     implementation(project(":feature:albums"))
+    implementation(project(":feature:editor"))
     implementation(project(":feature:library"))
     implementation(project(":feature:player"))
     implementation(project(":feature:timeline"))

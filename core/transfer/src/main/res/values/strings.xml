@@ -6,6 +6,8 @@
     <string name="transfer_notification_moving">Moving to %1$s</string>
     <string name="transfer_notification_converting">Converting %1$s</string>
     <string name="transfer_notification_updating">Updating %1$s</string>
+    <string name="transfer_notification_editing">Saving edits to %1$s</string>
+    <string name="transfer_notification_reverting">Reverting %1$s</string>
     <string name="transfer_notification_waiting_title">PhotoXT needs you</string>
     <plurals name="transfer_notification_waiting">
         <item quantity="one">%1$,d transfer waits for your answer. Open PhotoXT to go on.</item>
