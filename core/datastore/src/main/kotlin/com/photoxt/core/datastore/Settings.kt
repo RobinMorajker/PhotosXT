@@ -42,14 +42,12 @@ data class PxtSettings(
 )
 
 /**
- * The editor's settings (spec §4.10): the object eraser's model (Robin, 2026-11-16: both, with
- * a switch), presets the user saved, imported LUTs and stickers by their asset names, and the
- * last *Save as copy* choices. The asset files themselves stay on this phone.
+ * The editor's settings (spec §4.10): presets the user saved, imported LUTs and stickers by their
+ * asset names, and the last *Save as copy* choices. The asset files themselves stay on this
+ * phone. An `eraserModel` saved before LaMa was dropped (2026-11-18) is ignored when read.
  */
 @Serializable
 data class EditorSettings(
-    /** An `EraserModel` name (core/ml): MIGAN or LAMA. */
-    val eraserModel: String = "MIGAN",
     val presets: List<com.photoxt.core.model.EditPreset> = emptyList(),
     val luts: List<LutEntry> = emptyList(),
     val stickers: List<String> = emptyList(),

@@ -251,9 +251,6 @@
     <string name="settings_sync_done">Saved to %1$s, %2$s</string>
     <string name="settings_sync_waiting">Saves to %1$s</string>
     <string name="settings_editor">Editor</string>
-    <string name="settings_eraser_model">Object eraser model</string>
-    <string name="settings_model_migan">MI-GAN: fast, a %1$s download</string>
-    <string name="settings_model_lama">LaMa: best quality, a %1$s download</string>
     <string name="settings_models_delete">Delete downloaded models</string>
     <string name="settings_models_size">%1$s on this phone. The eraser downloads its model again when needed.</string>
 </resources>

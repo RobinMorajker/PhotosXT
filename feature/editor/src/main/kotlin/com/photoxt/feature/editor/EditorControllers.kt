@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import com.photoxt.core.common.PxtLog
 import com.photoxt.core.datastore.LutEntry
 import com.photoxt.core.datastore.SettingsStore
+import com.photoxt.core.ml.EraserModel
 import com.photoxt.core.ml.EraserModels
 import com.photoxt.core.ml.Inpainter
 import com.photoxt.core.ml.PhotoDetectors
@@ -703,7 +704,7 @@ internal class EraserController(
     override fun clearErase() = core.update { it.copy(pendingErase = emptyList()) }
 
     override fun downloadModel() {
-        val model = core.state.value.eraserModel
+        val model = EraserModel.MIGAN
         core.scope.launch {
             core.update { it.copy(modelProgress = 0f) }
             runCatching {
@@ -722,7 +723,7 @@ internal class EraserController(
         val s = core.state.value
         if (s.pendingErase.isEmpty()) return
         core.busy(R.string.editor_erasing) {
-            val erasure = erasing.erase(s.eraserModel, s.recipe, s.pendingErase)
+            val erasure = erasing.erase(EraserModel.MIGAN, s.recipe, s.pendingErase)
             if (erasure == null) {
                 core.say(R.string.editor_erase_failed)
             } else {

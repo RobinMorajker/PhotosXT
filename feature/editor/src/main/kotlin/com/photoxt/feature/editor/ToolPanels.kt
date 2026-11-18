@@ -552,18 +552,11 @@ private fun backgroundLabel(mode: BackgroundMode) = when (mode) {
 
 @Composable
 private fun EraserPanel(state: EditorState, tools: EditorTools) {
-    val model = stringResource(
-        if (state.eraserModel == EraserModel.MIGAN) R.string.model_migan else R.string.model_lama
-    )
     if (!state.modelReady) {
-        ModelDownload(model, state, tools)
+        ModelDownload(stringResource(R.string.model_migan), state, tools)
         return
     }
     val painted = state.pendingErase.isNotEmpty()
-    Text(
-        stringResource(R.string.editor_model_in_use, model),
-        style = MaterialTheme.typography.bodySmall
-    )
     SliderRow(
         label = R.string.editor_brush_size,
         value = state.eraserSize,
@@ -585,7 +578,7 @@ private fun EraserPanel(state: EditorState, tools: EditorTools) {
 /** The eraser's model is downloaded once, when the user asks (spec §4.10: on-device model). */
 @Composable
 private fun ModelDownload(model: String, state: EditorState, tools: EditorTools) {
-    val size = Formatter.formatShortFileSize(LocalContext.current, state.eraserModel.bytes)
+    val size = Formatter.formatShortFileSize(LocalContext.current, EraserModel.MIGAN.bytes)
     val progress = state.modelProgress
     Text(
         stringResource(R.string.editor_model_needed, model, size),

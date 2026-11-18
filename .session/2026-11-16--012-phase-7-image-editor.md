@@ -5,7 +5,7 @@
 
 ## Decisions (asked)
 - HEIC and AVIF export: add `androidx.heifwriter` 1.1.0 (not in §5.1).
-- Object eraser: both models, switchable in Settings: MI-GAN (default, 16 MB, fast) and LaMa (183 MB, best quality).
+- Object eraser: both models, switchable in Settings: MI-GAN (default, 16 MB, fast) and LaMa (183 MB, best quality). Changed 2026-11-18: LaMa dropped, MI-GAN only, after the pinned LaMa turned out to be a face model (see the follow-up below).
 
 ## Decisions (made, for Robin to confirm)
 - LiteRT runs through Google Play services (`play-services-tflite-java`/`-gpu` 16.5.0), so the APK carries no interpreter. The phone needs Play services, as it already does for ML Kit.
@@ -85,7 +85,7 @@ Robin turned wireless adb back on and asked for the features not yet tried. Test
 - **Pick a colour (Android 16 fallback):** *Pick a colour*, then a tap on the photo, took the hair's colour (87, 51, 25 against 88, 52, 26 under the tap) for the cut-out background. Only the Draw panel shows the "tap the photo" hint; Cut-out shows none.
 - **HEIC and AVIF copies:** both saved (1,536 × 1,536 from a 3 × 3 grid of 512 px tiles, about 51 kB each, EXIF kept) and both open in PhotoXT and decode elsewhere. But their EXIF said 1 × 1, taken from the 1 × 1 JPEG the EXIF block is built in, so MediaStore and PhotoXT's Details showed "1 × 1". Fixed, with `MetadataTest`.
 - **The fixed build:** installed once the link recovered; a new HEIC copy was then recorded as 1,536 × 1,536.
-- **LaMa:** downloaded (183 MB, in under 30 s) and erased the "MG ROAD" sign, but painted a blurred face (eyes, nose, mouth) into the sky where it was. The pinned file does the same on a PC, on the CPU, with the inputs its model card gives, so PhotoXT's code isn't the cause: the file is Qualcomm AI Hub's LaMa-Dilated, whose checkpoint is "Dilated CelebAHQ", a model of faces. MI-GAN (trained on Places2, scenes) fills scenes properly. I found no LiteRT build of the scene-trained big-LaMa, only ONNX ones. Robin to decide: drop LaMa, or replace it.
+- **LaMa:** downloaded (183 MB, in under 30 s) and erased the "MG ROAD" sign, but painted a blurred face (eyes, nose, mouth) into the sky where it was. The pinned file does the same on a PC, on the CPU, with the inputs its model card gives, so PhotoXT's code isn't the cause: the file is Qualcomm AI Hub's LaMa-Dilated, whose checkpoint is "Dilated CelebAHQ", a model of faces. MI-GAN (trained on Places2, scenes) fills scenes properly. I found no LiteRT build of the scene-trained big-LaMa, only ONNX ones. Asked, Robin chose to drop LaMa: the eraser is MI-GAN only, the switch is gone from Settings, a saved choice is ignored, and LaMa's file is deleted at the eraser's next download check (Settings' *Delete downloaded models* also clears it).
 - **Clean-up still to do on the phone:** it dropped off adb again (its Wi-Fi moved between 192.168.0.103 and .250, which turns Wireless debugging off). Left there: the test folder `Pictures/PhotoXT p7 test2` (p7e, p7f, p7g and three edited copies), `/data/local/tmp/p7x`, an open editor on p7e with the unsaved LaMa erase, and the eraser model set to LaMa with both models downloaded (199 MB).
 
 ## Accessibility

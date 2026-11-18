@@ -31,7 +31,6 @@ import com.photoxt.core.database.AccountEntity
 import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.datastore.SyncSettings
 import com.photoxt.core.designsystem.R as DesignR
-import com.photoxt.core.ml.EraserModel
 import com.photoxt.core.ml.EraserModels
 import com.photoxt.core.organize.SettingsSync
 import com.photoxt.core.organize.SyncStatus
@@ -51,7 +50,6 @@ data class SettingsUiState(
     val sync: SyncSettings = SyncSettings(),
     val status: SyncStatus? = null,
     val accounts: List<AccountEntity> = emptyList(),
-    val eraserModel: EraserModel = EraserModel.MIGAN,
     val modelsOnDisk: Long = 0
 )
 
@@ -71,10 +69,7 @@ class SettingsViewModel @Inject constructor(
         googleAccounts.accounts,
         onDisk
     ) { all, status, accounts, bytes ->
-        val model = runCatching {
-            EraserModel.valueOf(all.editor.eraserModel)
-        }.getOrDefault(EraserModel.MIGAN)
-        SettingsUiState(all.sync, status, accounts, model, bytes)
+        SettingsUiState(all.sync, status, accounts, bytes)
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_MS), SettingsUiState())
 
@@ -82,15 +77,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { onDisk.value = withContext(Dispatchers.IO) { models.sizeOnDisk() } }
     }
 
-    /** The object eraser's model (spec §4.10); the other one's file stays until deleted. */
-    fun setEraserModel(model: EraserModel) {
-        viewModelScope.launch { settings.updateEditor { it.copy(eraserModel = model.name) } }
-    }
-
     fun deleteModels() {
         viewModelScope.launch {
             onDisk.value = withContext(Dispatchers.IO) {
-                EraserModel.entries.forEach(models::delete)
+                models.deleteAll()
                 models.sizeOnDisk()
             }
         }
@@ -168,12 +158,7 @@ fun SettingsScreen(onBack: () -> Unit, onOpenStorage: () -> Unit, modifier: Modi
         }
         item(key = "editor") {
             Column {
-                EditorSettings(
-                    state.eraserModel,
-                    state.modelsOnDisk,
-                    viewModel::setEraserModel,
-                    viewModel::deleteModels
-                )
+                EditorSettings(state.modelsOnDisk, viewModel::deleteModels)
             }
         }
         item(key = "settings-sync") {

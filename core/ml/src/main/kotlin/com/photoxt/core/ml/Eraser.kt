@@ -28,9 +28,10 @@ import org.tensorflow.lite.InterpreterApi
 import org.tensorflow.lite.gpu.GpuDelegateFactory
 
 /**
- * The object eraser's inpainting models (spec §4.10, Retouch: "LiteRT, downloaded on demand"),
- * each pinned to one file: a Hugging Face commit, its size and SHA-256. Robin chose both, with a
- * switch in Settings (2026-11-16).
+ * The object eraser's inpainting model (spec §4.10, Retouch: "LiteRT, downloaded on demand"),
+ * pinned to one file: a Hugging Face commit, its size and SHA-256. Robin first chose MI-GAN and
+ * LaMa with a switch (2026-11-16), then dropped LaMa (2026-11-18): the only LiteRT LaMa, Qualcomm
+ * AI Hub's LaMa-Dilated, is the "Dilated CelebAHQ" checkpoint and paints faces into scenes.
  */
 enum class EraserModel(val url: String, val bytes: Long, val sha256: String) {
     /** Picsart's MI-GAN, 512 px, MIT licence, from Google's LiteRT community page. */
@@ -39,18 +40,10 @@ enum class EraserModel(val url: String, val bytes: Long, val sha256: String) {
             "179a35d8e8a518f6253f9c42fc9b412c6438cf7c/migan_fp16.tflite",
         16_312_640L,
         "ef53f8dca69e5ce29629441128322c4d9a0a527b2a043703e0ab497f2463c25f"
-    ),
-
-    /** Samsung Research's LaMa (dilated, Apache-2.0), compiled by Qualcomm AI Hub, 512 px. */
-    LAMA(
-        "https://huggingface.co/mlboydaisuke/LaMa-Dilated-LiteRT/resolve/" +
-            "4c8d164fc5405b55fc0d45f3151a91e0db5349f8/lama_dilated.tflite",
-        182_648_392L,
-        "a2ac8ed174be1233e4e518c8ef57fb943ea97162696dcd2d428c056280efe583"
     );
 
     companion object {
-        /** Both models take and give 512×512 pictures. */
+        /** The model takes and gives 512×512 pictures. */
         const val SIDE = 512
     }
 }
@@ -71,12 +64,18 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
     /** Whether [model] is on the phone, checked. */
     fun ready(model: EraserModel): Boolean = file(model).length() == model.bytes
 
-    /** Bytes the downloaded models take. */
-    fun sizeOnDisk(): Long = EraserModel.entries.sumOf { file(it).length() }
+    /** Bytes the downloaded models take, any left by older versions (LaMa) included. */
+    fun sizeOnDisk(): Long = dir.listFiles()?.sumOf { it.length() } ?: 0L
 
-    fun delete(model: EraserModel) {
-        file(model).delete()
-        File(dir, file(model).name + ".part").delete()
+    /** Deletes every downloaded model; the eraser fetches its own again when needed. */
+    fun deleteAll() {
+        dir.listFiles()?.forEach { it.delete() }
+    }
+
+    /** Files no current model owns, such as LaMa's 183 MB from before it was dropped. */
+    private fun prune() {
+        val ours = EraserModel.entries.flatMap { listOf(file(it).name, file(it).name + ".part") }
+        dir.listFiles()?.filter { it.name !in ours }?.forEach { it.delete() }
     }
 
     /**
@@ -86,6 +85,7 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
     suspend fun download(model: EraserModel, progress: (Float) -> Unit = {}): File =
         mutex.withLock {
             withContext(Dispatchers.IO) {
+                prune()
                 val target = file(model)
                 if (ready(model)) return@withContext target
                 dir.mkdirs()
@@ -194,10 +194,7 @@ class LiteRtInpainter @Inject constructor(
             withContext(Dispatchers.Default) {
                 val pixels = IntArray(side * side)
                 picture.getPixels(pixels, 0, side, 0, 0, side, side)
-                val out = when (model) {
-                    EraserModel.MIGAN -> runMigan(interpreter, pixels, hole)
-                    EraserModel.LAMA -> runLama(interpreter, pixels, hole)
-                }
+                val out = runMigan(interpreter, pixels, hole)
                 Bitmap.createBitmap(out, side, side, Bitmap.Config.ARGB_8888)
             }
         }
@@ -223,33 +220,6 @@ class LiteRtInpainter @Inject constructor(
             ((planes[plane][i] + 1f) * HALF_RANGE).toInt().coerceIn(0, MASK)
         return IntArray(n) { i ->
             OPAQUE or (byte(0, i) shl RED) or (byte(1, i) shl GREEN) or byte(2, i)
-        }
-    }
-
-    // LaMa: NHWC image and mask in [0, 1], mask 1 = hole; out NHWC in [0, 1].
-    private fun runLama(interpreter: InterpreterApi, pixels: IntArray, hole: ByteArray): IntArray {
-        val n = pixels.size
-        val image = floats(n * RGB)
-        val mask = floats(n)
-        for (i in 0 until n) {
-            image.put(((pixels[i] shr RED) and MASK) / FULL_RANGE)
-            image.put(((pixels[i] shr GREEN) and MASK) / FULL_RANGE)
-            image.put((pixels[i] and MASK) / FULL_RANGE)
-            mask.put(if ((hole[i].toInt() and MASK) >= HALF) 1f else 0f)
-        }
-        image.rewind()
-        mask.rewind()
-        // The image input is the one whose last dimension is its three channels.
-        val imageFirst = interpreter.getInputTensor(0).shape().last() == RGB
-        val inputs: Array<Any> = if (imageFirst) arrayOf(image, mask) else arrayOf(mask, image)
-        val output = floats(n * RGB)
-        interpreter.runForMultipleInputsOutputs(inputs, mapOf(0 to output))
-        output.rewind()
-        return IntArray(n) {
-            val r = (output.get() * FULL_RANGE).toInt().coerceIn(0, MASK)
-            val g = (output.get() * FULL_RANGE).toInt().coerceIn(0, MASK)
-            val b = (output.get() * FULL_RANGE).toInt().coerceIn(0, MASK)
-            OPAQUE or (r shl RED) or (g shl GREEN) or b
         }
     }
 

@@ -289,11 +289,9 @@
 
     <!-- Object eraser -->
     <string name="model_migan">MI-GAN (fast)</string>
-    <string name="model_lama">LaMa (best quality)</string>
     <string name="editor_model_needed">The object eraser needs the %1$s model, a one-time download of %2$s.</string>
     <string name="editor_model_download">Download</string>
     <string name="editor_model_failed">Couldn\'t download the eraser model. Try again on a better connection.</string>
-    <string name="editor_model_in_use">Using %1$s. You can switch models in Settings.</string>
     <string name="editor_erase_hint">Paint over what to remove, then tap Erase.</string>
     <string name="editor_erase">Erase</string>
     <string name="editor_erase_clear">Clear</string>
