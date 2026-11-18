@@ -40,6 +40,7 @@
     <string name="editor_error_offline">Couldn\'t download the photo from Google Drive. Check the connection and try again.</string>
     <string name="editor_error_open">Couldn\'t open this photo.</string>
     <string name="editor_step_failed">That didn\'t work. Try again.</string>
+    <string name="editor_models_downloading">Google Play services is still getting this tool ready. Try again in a minute.</string>
     <string name="editor_discard_title">Discard edits?</string>
     <string name="editor_discard_text">Your changes to this photo will be lost.</string>
     <string name="editor_discard">Discard</string>

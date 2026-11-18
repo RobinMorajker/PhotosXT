@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.PointF
 import android.graphics.Rect
 import com.google.android.gms.tasks.Task
+import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
@@ -13,6 +14,7 @@ import com.google.mlkit.vision.segmentation.subject.SubjectSegmenterOptions
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
@@ -76,8 +78,11 @@ class MlKitDetectors @Inject constructor() : PhotoDetectors {
         val image = InputImage.fromBitmap(picture, 0)
         val lines = buildList {
             for (recognizer in listOf(latin, devanagari)) {
-                val result =
-                    runCatching { recognizer.process(image).await() }.getOrNull() ?: continue
+                // A script still downloading must not pass for no text there: redaction hides
+                // what it finds, so missing a sign silently would leave it showing.
+                val result = runCatching { recognizer.process(image).await() }
+                    .onFailure { if (it is ModelsDownloadingException) throw it }
+                    .getOrNull() ?: continue
                 result.textBlocks.forEach { block ->
                     block.lines.forEach { line -> line.boundingBox?.let { add(it to line.text) } }
                 }
@@ -142,6 +147,22 @@ object Plates {
 /** [this] task's result, suspending until it completes. */
 internal suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { continuation ->
     addOnSuccessListener { continuation.resume(it) }
-    addOnFailureListener { continuation.resumeWithException(it) }
+    addOnFailureListener { continuation.resumeWithException(it.downloading()) }
     addOnCanceledListener { continuation.cancel() }
 }
+
+/**
+ * Google Play services is still downloading the ML Kit model a call needs, and the same call works
+ * once it has. Play installs fetch the models at install time (the manifest's DEPENDENCIES); a
+ * sideloaded app gets each one on its first use.
+ */
+class ModelsDownloadingException(cause: Throwable) :
+    IOException("An ML Kit model is still downloading", cause)
+
+/** ML Kit's "module still downloading" as [ModelsDownloadingException]; anything else as is. */
+internal fun Exception.downloading(): Exception =
+    if (this is MlKitException && errorCode == MlKitException.UNAVAILABLE) {
+        ModelsDownloadingException(this)
+    } else {
+        this
+    }

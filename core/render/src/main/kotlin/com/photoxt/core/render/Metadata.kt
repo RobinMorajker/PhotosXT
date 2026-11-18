@@ -31,6 +31,9 @@ object Metadata {
             carrier.writeBytes(TINY_JPEG)
             val target = ExifInterface(carrier)
             write(source, target, size)
+            // The carrier's own 1×1 would pass for the export's size: MediaStore reads it.
+            target.setAttribute(ExifInterface.TAG_IMAGE_WIDTH, size.width.toString())
+            target.setAttribute(ExifInterface.TAG_IMAGE_LENGTH, size.height.toString())
             target.saveAttributes()
             return app1(carrier.readBytes())
         } finally {

@@ -9,6 +9,7 @@ import com.photoxt.core.database.ViewerItem
 import com.photoxt.core.datastore.SettingsStore
 import com.photoxt.core.ml.EraserModel
 import com.photoxt.core.ml.EraserModels
+import com.photoxt.core.ml.ModelsDownloadingException
 import com.photoxt.core.model.EditRecipe
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.render.EditJson
@@ -138,6 +139,9 @@ class EditorCore internal constructor(
                 block()
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (downloading: ModelsDownloadingException) {
+                PxtLog.w(TAG, "A model is still downloading", downloading)
+                events.send(EditorEvent.Message(R.string.editor_models_downloading))
             } catch (error: Exception) {
                 PxtLog.w(TAG, "An editor step failed", error)
                 events.send(EditorEvent.Message(R.string.editor_step_failed))
