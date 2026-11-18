@@ -144,31 +144,8 @@ interface DriveApi {
         @Query("type") type: String = "files"
     ): GeneratedIds
 
-    /** A file's current revision, for keeping it before an edit replaces it (spec §4.10). */
-    @GET("drive/v3/files/{id}")
-    suspend fun headRevision(
-        @Tag account: DriveAccount,
-        @Path("id") id: String,
-        @Query("fields") fields: String = "id,headRevisionId,md5Checksum,size",
-        @Query("supportsAllDrives") supportsAllDrives: Boolean = true
-    ): DriveHead
-
-    /**
-     * Keeps revision [revision] forever, or lets Drive purge it again; Drive allows 200 kept
-     * revisions per file (spec §4.10, Revert).
-     */
-    @PATCH("drive/v3/files/{id}/revisions/{revision}")
-    suspend fun keepRevision(
-        @Tag account: DriveAccount,
-        @Path("id") id: String,
-        @Path("revision") revision: String,
-        @Body keep: DriveRevisionWrite,
-        @Query("fields") fields: String = REVISION_FIELDS
-    ): DriveRevision
-
     companion object {
         const val PAGE_SIZE = 1000
-        const val REVISION_FIELDS = "id,md5Checksum,size,keepForever,mimeType,modifiedTime"
 
         /** Drive gives at most this many ids per generateIds call. */
         const val MAX_GENERATED_IDS = 1000

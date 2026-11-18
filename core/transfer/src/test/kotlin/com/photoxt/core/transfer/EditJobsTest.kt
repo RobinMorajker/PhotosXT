@@ -59,10 +59,12 @@ class EditJobsTest {
 
         val batch = checkNotNull(ops.save(id, brighter, ExportOptions(), "a.jpg"))
         h.drain()
-        // MediaStore asks before PhotoXT may change another app's photo; nothing changed yet.
+        // MediaStore asks before PhotoXT may change another app's photo; nothing changed yet,
+        // nor rendered, so a batch's photos wait together for one screen.
         val job = h.dao.jobs(batch).single()
         assertEquals("${job.state} ${job.error}", WaitFor.DEVICE_WRITE, job.waitFor)
         assertArrayEquals(original, h.device.items.getValue(uri).bytes)
+        assertTrue(h.exporter.exported.isEmpty())
         h.queue.deviceConsent(WaitFor.DEVICE_WRITE, listOf(job.id), granted = true)
         h.device.granted += uri
         h.drain()
@@ -103,11 +105,12 @@ class EditJobsTest {
 
         ops.revert(listOf(id), "x.jpg")
         h.drain()
-        assertEquals(3, file.revisions.size)
         assertArrayEquals(original, file.content)
         assertEquals(md5(original), file.md5)
-        // Back to the original, the kept revision may go again.
-        assertFalse(file.revisions.first().keepForever)
+        // Back to the original, the kept revision is a duplicate and goes; the edit is left for
+        // Drive to purge after 30 days.
+        assertEquals(listOf("r2", "r3"), file.revisions.map { it.id })
+        assertFalse(file.revisions.any { it.keepForever })
         assertNull(h.database.editDao().edit(id))
     }
 

@@ -713,7 +713,8 @@ internal class EraserController(
                     PxtLog.w(TAG, "The eraser model didn't download", it)
                     core.say(R.string.editor_model_failed)
                 }
-            core.update { it.copy(modelProgress = null, modelReady = models.ready(model)) }
+            val ready = withContext(Dispatchers.IO) { models.ready(model) }
+            core.update { it.copy(modelProgress = null, modelReady = ready) }
         }
     }
 

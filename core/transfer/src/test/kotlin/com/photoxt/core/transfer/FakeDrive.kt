@@ -152,9 +152,17 @@ class FakeDrive : Dispatcher() {
                     file.revisions.firstOrNull { it.id == segments[5] } ?: return status(404)
                 when {
                     request.method == "PATCH" -> {
-                        revision.keepForever =
-                            body(request)["keepForever"]?.jsonPrimitive?.content == "true"
+                        val keep = body(request)["keepForever"]?.jsonPrimitive?.content == "true"
+                        // Drive: "Cannot update a revision to false that is marked as keepForever."
+                        if (revision.keepForever && !keep) return status(400)
+                        revision.keepForever = keep
                         json(revision.json())
+                    }
+
+                    request.method == "DELETE" -> {
+                        if (file.revisions.size == 1) return status(400)
+                        file.revisions -= revision
+                        status(204)
                     }
 
                     url.queryParameter("alt") == "media" -> media(revision.content, request)

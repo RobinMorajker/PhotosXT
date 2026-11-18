@@ -40,12 +40,16 @@ class DriveHttp(private val tokens: DriveTokens, val baseUrl: HttpUrl = DEFAULT_
         .readTimeout(READ_TIMEOUT_S, TimeUnit.SECONDS)
         .build()
 
-    val api: DriveApi = Retrofit.Builder()
+    private val retrofit = Retrofit.Builder()
         .baseUrl(baseUrl)
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
-        .create()
+
+    val api: DriveApi = retrofit.create()
+
+    /** A file's versions, kept and deleted (spec §4.10). */
+    val revisionApi: DriveRevisionApi = retrofit.create()
 
     /** The URL of a file's bytes (`alt=media`), for streaming and downloads. */
     fun mediaUrl(fileId: String): HttpUrl = baseUrl.newBuilder()

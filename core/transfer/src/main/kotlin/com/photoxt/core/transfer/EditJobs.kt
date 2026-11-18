@@ -44,6 +44,11 @@ internal class EditJobs(
     suspend fun save(run: JobRun): Outcome {
         val src = run.src
         val mediaId = checkNotNull(src.mediaId) { "An edit of an item PhotoXT doesn't know" }
+        // MediaStore's consent before anything is rendered, so the photos of a pasted batch reach
+        // the wait together and are asked for in one screen, not one after each render.
+        src.uri?.takeUnless { src.isDrive }?.let { uri ->
+            run.deviceWrite(WaitFor.DEVICE_WRITE, uri) { device.checkWrite(uri) }
+        }
         val payload = payloadOf(run)
         val edit = dao.edit(mediaId)
         // What Undo of this save goes back to.
@@ -112,21 +117,24 @@ internal class EditJobs(
             val file = downloaded(run, edit.originalMd5) { offset ->
                 revisions.download(account, fileId, revision, offset)
             }
+            // Checked against the original's MD5, so the kept revision is a duplicate after it.
             copier.uploadRevision(run, file, edit.originalMime, edit.originalMd5)
-            // The original's bytes are the current revision again; the kept one may go.
-            runCatching { revisions.keep(account, fileId, revision, keep = false) }
-                .onFailure { PxtLog.w(TAG, "Couldn't release the kept revision", it) }
             env.driveWritten(account)
             file.delete()
+            dao.delete(mediaId)
+            // Drive never unsets keepForever (400), so the kept revision is deleted instead.
+            runCatching { revisions.delete(account, fileId, revision) }
+                .onFailure { PxtLog.w(TAG, "Couldn't delete the kept revision", it) }
         } else {
             val kept = File(checkNotNull(edit.originalPath) { "No kept original" })
             if (!kept.isFile || !kept.md5().equals(edit.originalMd5, ignoreCase = true)) {
                 throw PermanentException("The kept original is missing or damaged")
             }
             overwrite(run, checkNotNull(src.uri), kept, edit.originalMd5)
+            // The row goes first: a revert stopped after it finds nothing left to do.
+            dao.delete(mediaId)
             kept.delete()
         }
-        dao.delete(mediaId)
         return Outcome.Done(src.copy(md5 = edit.originalMd5, bytes = edit.originalBytes))
     }
 
@@ -194,7 +202,7 @@ internal class EditJobs(
         val revision = saved.revision ?: head.headRevisionId
         if (keep) {
             checkNotNull(revision) { "Drive gave no revision" }
-            revisions.keep(account, fileId, revision, keep = true)
+            revisions.keep(account, fileId, revision)
             // A resumed job keeps the revision it first saw, not the edit it uploaded since.
             if (saved.revision == null) run.save(saved.copy(revision = revision, originalMd5 = md5))
         }

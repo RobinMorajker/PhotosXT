@@ -238,8 +238,8 @@ internal object EditShader {
             }
             float roundEdge = 1.0;
             if (uRadius > 0.0) {
-                vec2 half = uContent.zw * 0.5;
-                vec2 q = abs(local - half) - (half - vec2(uRadius));
+                vec2 halfSize = uContent.zw * 0.5;
+                vec2 q = abs(local - halfSize) - (halfSize - vec2(uRadius));
                 float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRadius;
                 roundEdge = 1.0 - smoothstep(-0.5, 0.5, dist);
             }

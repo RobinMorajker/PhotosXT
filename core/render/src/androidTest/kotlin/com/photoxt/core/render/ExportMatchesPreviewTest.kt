@@ -46,7 +46,7 @@ class ExportMatchesPreviewTest {
     }
 
     @Test
-    fun aFiftyMegapixelExportMatchesThePreview() = runBlocking {
+    fun aFiftyMegapixelExportMatchesThePreview() = runBlocking<Unit> {
         val photo = File(work, "photo.jpg")
         writePhoto(photo)
         val assets = EditAssets(File(work, "assets"))

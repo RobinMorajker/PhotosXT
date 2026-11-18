@@ -87,7 +87,8 @@ class EditorSources @Inject constructor(
     private val originals: DriveOriginals,
     private val drive: DriveFiles
 ) {
-    private val dir = File(context.cacheDir, "editor")
+    // Lazy: built on the main thread, and cacheDir touches the disk (StrictMode).
+    private val dir by lazy { File(context.cacheDir, "editor") }
 
     suspend fun original(
         item: ViewerItem,

@@ -5,10 +5,12 @@ import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
+import android.os.Process
 import android.os.storage.StorageManager
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns
@@ -47,6 +49,7 @@ data class DeviceFile(
  * it through MediaStore's own request screens, which the app shows (core/transfer `Consents`).
  * Tests substitute a fake.
  */
+@Suppress("TooManyFunctions") // One function per MediaStore change PhotoXT makes.
 interface DeviceStore {
     /** The item at [uri], trashed or not; null when it is gone. */
     fun file(uri: String): DeviceFile?
@@ -61,6 +64,12 @@ interface DeviceStore {
 
     /** Writes an item PhotoXT made, from the start. */
     fun openOutput(uri: String): OutputStream
+
+    /**
+     * Throws [SecurityException] unless PhotoXT may change [uri] now: its own item, the user's
+     * consent, or media management. Changes nothing.
+     */
+    fun checkWrite(uri: String)
 
     /** Shows a pending item to everyone, now that its bytes are checked. */
     fun publish(uri: String, takenAt: Long?)
@@ -92,6 +101,7 @@ interface DeviceStore {
     fun bucketId(volume: String, path: String): Long?
 }
 
+@Suppress("TooManyFunctions") // DeviceStore's functions, one each.
 class MediaStoreDevice @Inject constructor(@param:ApplicationContext private val context: Context) :
     DeviceStore {
     private val resolver: ContentResolver get() = context.contentResolver
@@ -160,6 +170,15 @@ class MediaStoreDevice @Inject constructor(@param:ApplicationContext private val
 
     override fun openOutput(uri: String): OutputStream =
         resolver.openOutputStream(uri.toUri(), "wt") ?: throw FileNotFoundException("No such item")
+
+    override fun checkWrite(uri: String) {
+        // MediaStore answers this itself: ownership, grants and media management included.
+        val mode = Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        val answer = context.checkUriPermission(uri.toUri(), Process.myPid(), Process.myUid(), mode)
+        if (answer != PackageManager.PERMISSION_GRANTED) {
+            throw SecurityException("MediaStore wants the user's consent")
+        }
+    }
 
     override fun publish(uri: String, takenAt: Long?) {
         val values = ContentValues().apply {

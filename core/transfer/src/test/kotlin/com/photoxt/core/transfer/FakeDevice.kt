@@ -88,6 +88,10 @@ class FakeDevice : DeviceStore {
         return uri
     }
 
+    override fun checkWrite(uri: String) {
+        writable(uri)
+    }
+
     override fun openOutput(uri: String): OutputStream {
         val item = writable(uri)
         return object : ByteArrayOutputStream() {

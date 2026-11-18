@@ -61,8 +61,9 @@ class ModelChecksumException : IOException("The model file didn't match its chec
 /** Downloads, checks and keeps the eraser models in app storage (not backed up). */
 @Singleton
 class EraserModels @Inject constructor(@ApplicationContext context: Context) {
-    private val dir = File(context.noBackupFilesDir, "models")
-    private val client = OkHttpClient()
+    // Lazy: Hilt builds this on the main thread, where both touch the disk (StrictMode).
+    private val dir by lazy { File(context.noBackupFilesDir, "models") }
+    private val client by lazy { OkHttpClient() }
     private val mutex = Mutex()
 
     fun file(model: EraserModel) = File(dir, model.name.lowercase() + ".tflite")

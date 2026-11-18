@@ -21,6 +21,9 @@ jobs:
           java-version: 21
       # Also validates the Gradle wrapper jar.
       - uses: gradle/actions/setup-gradle@v6
+      # glslangValidator, for the shader test in core/render.
+      - name: GLSL reference compiler
+        run: sudo apt-get update && sudo apt-get install -y glslang-tools
       - name: Format, static analysis, Lint, unit and screenshot tests, build
         run: ./gradlew spotlessCheck detekt lintDebug testDebugUnitTest assembleDebug :baselineprofile:assemble
       - name: Upload reports
