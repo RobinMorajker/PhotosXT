@@ -1,6 +1,7 @@
 package com.photoxt.feature.editor
 
 import com.photoxt.core.datastore.LutEntry
+import com.photoxt.core.ml.EraserModel
 import com.photoxt.core.model.BrushTool
 import com.photoxt.core.model.EditPreset
 import com.photoxt.core.model.EditRecipe
@@ -95,6 +96,7 @@ data class EditorState(
     val maskBrushSize: Float = 0.06f,
     val maskErase: Boolean = false,
     val eraserSize: Float = 0.05f,
+    val eraserModel: EraserModel = EraserModel.MIGAN,
     val modelProgress: Float? = null,
     val modelReady: Boolean = false,
     val pendingErase: List<MaskStroke> = emptyList(),

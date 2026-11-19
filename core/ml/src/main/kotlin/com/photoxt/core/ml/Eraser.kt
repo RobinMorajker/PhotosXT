@@ -13,6 +13,7 @@ import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.FloatBuffer
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,22 +29,41 @@ import org.tensorflow.lite.InterpreterApi
 import org.tensorflow.lite.gpu.GpuDelegateFactory
 
 /**
- * The object eraser's inpainting model (spec §4.10, Retouch: "LiteRT, downloaded on demand"),
- * pinned to one file: a Hugging Face commit, its size and SHA-256. Robin first chose MI-GAN and
- * LaMa with a switch (2026-11-16), then dropped LaMa (2026-11-18): the only LiteRT LaMa, Qualcomm
- * AI Hub's LaMa-Dilated, is the "Dilated CelebAHQ" checkpoint and paints faces into scenes.
+ * The object eraser's inpainting models (spec §4.10, Retouch: "LiteRT, downloaded on demand"),
+ * each pinned to one file: an immutable commit, its size and SHA-256. Robin asked for LaMa, MI-GAN
+ * and DeepFill v2 with a switch (2026-11-19). All three are trained on Places2 (scenes): the LaMa
+ * dropped on 2026-11-18, Qualcomm AI Hub's LaMa-Dilated, was a face model.
  */
 enum class EraserModel(val url: String, val bytes: Long, val sha256: String) {
-    /** Picsart's MI-GAN, 512 px, MIT licence, from Google's LiteRT community page. */
+    /** Samsung Research's big-lama (Apache-2.0), its FFTs as matrix multiplies; image and mask. */
+    LAMA(
+        "https://huggingface.co/Dineshsoudagar/big-lama-512-LiteRT/resolve/" +
+            "32e8ffaa7149aa2d679e0f5bb821b41ece9b5a04/lama_512_fp16.tflite",
+        104_462_512L,
+        "522092191a7edb8abbd80589ce74385d579b0c97d6978da7a4f257da39e6d885"
+    ),
+
+    /** Picsart's MI-GAN (MIT), from Google's LiteRT community page. */
     MIGAN(
         "https://huggingface.co/litert-community/MI-GAN-512-Places2-LiteRT/resolve/" +
             "179a35d8e8a518f6253f9c42fc9b412c6438cf7c/migan_fp16.tflite",
         16_312_640L,
         "ef53f8dca69e5ce29629441128322c4d9a0a527b2a043703e0ab497f2463c25f"
+    ),
+
+    /**
+     * DeepFill v2 (CC BY-NC 4.0: non-commercial only), built for LiteRT in this repository's
+     * `models/`, with LaMa's image-and-mask interface.
+     */
+    DEEPFILL(
+        "https://raw.githubusercontent.com/RobinMorajker/PhotosXT/" +
+            "89c3daff9a8e656abc4c86550025997b3812a642/models/deepfill_v2_512_fp16.tflite",
+        8_698_084L,
+        "5561b5aede282dc06762d4da569c98587c82b5622e8b94612ca28d855bedef28"
     );
 
     companion object {
-        /** The model takes and gives 512×512 pictures. */
+        /** Every model takes and gives 512×512 pictures. */
         const val SIDE = 512
     }
 }
@@ -59,12 +79,14 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
     private val client by lazy { OkHttpClient() }
     private val mutex = Mutex()
 
-    fun file(model: EraserModel) = File(dir, model.name.lowercase() + ".tflite")
+    /** Named by its checksum, so a file pinned before (LaMa-Dilated's) is a stranger, pruned. */
+    fun file(model: EraserModel) =
+        File(dir, "${model.name.lowercase()}-${model.sha256.take(NAME_HASH)}.tflite")
 
     /** Whether [model] is on the phone, checked. */
     fun ready(model: EraserModel): Boolean = file(model).length() == model.bytes
 
-    /** Bytes the downloaded models take, any left by older versions (LaMa) included. */
+    /** Bytes the downloaded models take, any left by older pins included. */
     fun sizeOnDisk(): Long = dir.listFiles()?.sumOf { it.length() } ?: 0L
 
     /** Deletes every downloaded model; the eraser fetches its own again when needed. */
@@ -72,7 +94,7 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
         dir.listFiles()?.forEach { it.delete() }
     }
 
-    /** Files no current model owns, such as LaMa's 183 MB from before it was dropped. */
+    /** Files no current pin owns, such as LaMa-Dilated's 183 MB or a half-fetched old pin. */
     private fun prune() {
         val ours = EraserModel.entries.flatMap { listOf(file(it).name, file(it).name + ".part") }
         dir.listFiles()?.filter { it.name !in ours }?.forEach { it.delete() }
@@ -164,6 +186,7 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
         const val TAG = "Eraser"
         const val BUFFER = 1 shl 16
         const val HTTP_PARTIAL = 206
+        const val NAME_HASH = 12
     }
 }
 
@@ -194,34 +217,25 @@ class LiteRtInpainter @Inject constructor(
             withContext(Dispatchers.Default) {
                 val pixels = IntArray(side * side)
                 picture.getPixels(pixels, 0, side, 0, 0, side, side)
-                val out = runMigan(interpreter, pixels, hole)
+                val output = Planes.floats(pixels.size * Planes.RGB)
+                when (model) {
+                    EraserModel.MIGAN -> interpreter.run(Planes.migan(pixels, hole), output)
+
+                    EraserModel.LAMA, EraserModel.DEEPFILL -> {
+                        val (image, mask) = Planes.imageAndMask(pixels, hole)
+                        // The image is the input with three channels: LaMa's comes first,
+                        // DeepFill's second.
+                        val imageFirst = interpreter.getInputTensor(0).shape()[1] == Planes.RGB
+                        val inputs: Array<Any> =
+                            if (imageFirst) arrayOf(image, mask) else arrayOf(mask, image)
+                        interpreter.runForMultipleInputsOutputs(inputs, mapOf(0 to output))
+                    }
+                }
+                output.rewind()
+                val out = Planes.pixels(output, pixels.size, signed = model == EraserModel.MIGAN)
                 Bitmap.createBitmap(out, side, side, Bitmap.Config.ARGB_8888)
             }
         }
-
-    // MI-GAN: one NCHW input, concat(keep − 0.5, rgb·keep) with rgb in [−1, 1]; out in [−1, 1].
-    private fun runMigan(interpreter: InterpreterApi, pixels: IntArray, hole: ByteArray): IntArray {
-        val n = pixels.size
-        // Four planes: what to keep, then red, green and blue.
-        val input = floats(n * (1 + RGB))
-        val keep = FloatArray(n) { if ((hole[it].toInt() and MASK) >= HALF) 0f else 1f }
-        for (i in 0 until n) input.put(keep[i] - KEEP_CENTRE)
-        for (shift in intArrayOf(RED, GREEN, BLUE)) {
-            for (i in 0 until n) {
-                input.put((((pixels[i] shr shift) and MASK) / HALF_RANGE - 1f) * keep[i])
-            }
-        }
-        input.rewind()
-        val output = floats(n * RGB)
-        interpreter.run(input, output)
-        output.rewind()
-        val planes = Array(RGB) { FloatArray(n) { output.get() } }
-        fun byte(plane: Int, i: Int) =
-            ((planes[plane][i] + 1f) * HALF_RANGE).toInt().coerceIn(0, MASK)
-        return IntArray(n) { i ->
-            OPAQUE or (byte(0, i) shl RED) or (byte(1, i) shl GREEN) or byte(2, i)
-        }
-    }
 
     private suspend fun interpreter(model: EraserModel): InterpreterApi {
         loaded?.takeIf { it.first == model }?.let { return it.second }
@@ -250,29 +264,78 @@ class LiteRtInpainter @Inject constructor(
                 null
             }
             val onCpu = InterpreterApi.Options().setRuntime(runtime).setNumThreads(THREADS)
+            PxtLog.i(TAG, "${model.name} runs on the ${if (onGpu != null) "GPU" else "CPU"}")
             onGpu ?: InterpreterApi.create(file, onCpu)
         }
         loaded = model to interpreter
         return interpreter
     }
 
-    private fun floats(count: Int) = ByteBuffer
+    private companion object {
+        const val TAG = "Eraser"
+        const val THREADS = 4
+    }
+}
+
+/** Pixels to and from the models' NCHW float planes; hole bytes of 128 and up are filled. */
+internal object Planes {
+    const val RGB = 3
+    private const val KEEP_CENTRE = 0.5f
+    private const val MASK = 0xFF
+    private const val HALF = 128
+    private const val HALF_RANGE = 127.5f
+    private const val FULL_RANGE = 255f
+    private val SHIFTS = intArrayOf(16, 8, 0)
+    private const val OPAQUE = -0x1000000
+
+    /** MI-GAN's one input: what to keep − 0.5, then RGB in [−1, 1] times what to keep. */
+    fun migan(pixels: IntArray, hole: ByteArray): FloatBuffer {
+        val n = pixels.size
+        val keep = FloatArray(n) { if (filled(hole, it)) 0f else 1f }
+        val input = floats(n * (1 + RGB))
+        for (i in 0 until n) input.put(keep[i] - KEEP_CENTRE)
+        for (shift in SHIFTS) {
+            for (i in 0 until n) {
+                input.put((((pixels[i] shr shift) and MASK) / HALF_RANGE - 1f) * keep[i])
+            }
+        }
+        input.rewind()
+        return input
+    }
+
+    /** LaMa's and DeepFill's inputs: RGB in [0, 1] with the hole blanked, and the hole as 1. */
+    fun imageAndMask(pixels: IntArray, hole: ByteArray): Pair<FloatBuffer, FloatBuffer> {
+        val n = pixels.size
+        val image = floats(n * RGB)
+        for (shift in SHIFTS) {
+            for (i in 0 until n) {
+                val value = ((pixels[i] shr shift) and MASK) / FULL_RANGE
+                image.put(if (filled(hole, i)) 0f else value)
+            }
+        }
+        val mask = floats(n)
+        for (i in 0 until n) mask.put(if (filled(hole, i)) 1f else 0f)
+        image.rewind()
+        mask.rewind()
+        return image to mask
+    }
+
+    /** Red, green and blue planes as opaque pixels, from [−1, 1] when [signed], else [0, 1]. */
+    fun pixels(planes: FloatBuffer, n: Int, signed: Boolean): IntArray {
+        val rgb = Array(RGB) { FloatArray(n) { planes.get() } }
+        fun byte(plane: Int, i: Int): Int {
+            val v = rgb[plane][i]
+            return (if (signed) (v + 1f) * HALF_RANGE else v * FULL_RANGE).toInt().coerceIn(0, MASK)
+        }
+        return IntArray(n) { i ->
+            OPAQUE or (byte(0, i) shl SHIFTS[0]) or (byte(1, i) shl SHIFTS[1]) or byte(2, i)
+        }
+    }
+
+    fun floats(count: Int): FloatBuffer = ByteBuffer
         .allocateDirect(count * Float.SIZE_BYTES)
         .order(ByteOrder.nativeOrder())
         .asFloatBuffer()
 
-    private companion object {
-        const val TAG = "Eraser"
-        const val RGB = 3
-        const val KEEP_CENTRE = 0.5f
-        const val MASK = 0xFF
-        const val HALF = 128
-        const val HALF_RANGE = 127.5f
-        const val FULL_RANGE = 255f
-        const val RED = 16
-        const val GREEN = 8
-        const val BLUE = 0
-        const val OPAQUE = -0x1000000
-        const val THREADS = 4
-    }
+    private fun filled(hole: ByteArray, i: Int) = (hole[i].toInt() and MASK) >= HALF
 }

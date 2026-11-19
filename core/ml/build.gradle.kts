@@ -7,6 +7,8 @@ plugins {
 
 android {
     namespace = "com.photoxt.core.ml"
+    // The eraser models' check runs on a phone, in Play services' LiteRT (EraserModelsTest).
+    defaultConfig { testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
 }
 
 dependencies {
@@ -22,4 +24,7 @@ dependencies {
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    androidTestImplementation(libs.androidx.core.ktx)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
 }

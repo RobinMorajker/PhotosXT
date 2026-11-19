@@ -91,7 +91,7 @@ class EditorToolsFactory @Inject constructor(
                 editOps,
                 mediaId
             ),
-            eraser = EraserController(core, models, inpainter, assets),
+            eraser = EraserController(core, models, inpainter, assets, settings),
             output = OutputController(core, context, clipboard, editOps, settings, subject, mediaId)
         )
     }
@@ -691,7 +691,8 @@ internal class EraserController(
     private val core: EditorCore,
     private val models: EraserModels,
     inpainter: Inpainter,
-    assets: EditAssets
+    assets: EditAssets,
+    private val settings: SettingsStore
 ) : EraserActions {
     private val erasing = Erasing(core.session, inpainter, assets)
 
@@ -703,8 +704,16 @@ internal class EraserController(
 
     override fun clearErase() = core.update { it.copy(pendingErase = emptyList()) }
 
+    override fun setEraserModel(model: EraserModel) {
+        core.scope.launch {
+            val ready = withContext(Dispatchers.IO) { models.ready(model) }
+            core.update { it.copy(eraserModel = model, modelReady = ready) }
+            settings.updateEditor { it.copy(eraserModel = model.name) }
+        }
+    }
+
     override fun downloadModel() {
-        val model = EraserModel.MIGAN
+        val model = core.state.value.eraserModel
         core.scope.launch {
             core.update { it.copy(modelProgress = 0f) }
             runCatching {
@@ -723,7 +732,7 @@ internal class EraserController(
         val s = core.state.value
         if (s.pendingErase.isEmpty()) return
         core.busy(R.string.editor_erasing) {
-            val erasure = erasing.erase(EraserModel.MIGAN, s.recipe, s.pendingErase)
+            val erasure = erasing.erase(s.eraserModel, s.recipe, s.pendingErase)
             if (erasure == null) {
                 core.say(R.string.editor_erase_failed)
             } else {

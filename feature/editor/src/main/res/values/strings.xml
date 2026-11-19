@@ -288,7 +288,9 @@
     <string name="editor_lifted_copied">Subject copied</string>
 
     <!-- Object eraser -->
-    <string name="model_migan">MI-GAN (fast)</string>
+    <string name="model_lama">LaMa</string>
+    <string name="model_migan">MI-GAN</string>
+    <string name="model_deepfill">DeepFill v2</string>
     <string name="editor_model_needed">The object eraser needs the %1$s model, a one-time download of %2$s.</string>
     <string name="editor_model_download">Download</string>
     <string name="editor_model_failed">Couldn\'t download the eraser model. Try again on a better connection.</string>

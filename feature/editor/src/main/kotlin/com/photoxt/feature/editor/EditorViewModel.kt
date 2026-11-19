@@ -208,13 +208,15 @@ class EditorViewModel @AssistedInject constructor(
         }
         viewModelScope.launch {
             settings.settings.collect { s ->
+                val model = EraserModel.entries.firstOrNull { it.name == s.editor.eraserModel }
+                    ?: EraserModel.MIGAN
                 // LUT files and sticker pictures stay on the phone that added them, while
                 // their entries sync with the settings: only what this phone has is offered.
                 val (luts, stickers, ready) = withContext(Dispatchers.IO) {
                     Triple(
                         s.editor.luts.filter { assets.exists(it.asset) },
                         s.editor.stickers.filter(assets::exists),
-                        models.ready(EraserModel.MIGAN)
+                        models.ready(model)
                     )
                 }
                 core.update {
@@ -223,6 +225,7 @@ class EditorViewModel @AssistedInject constructor(
                         luts = luts,
                         stickers = stickers,
                         export = s.editor.export,
+                        eraserModel = model,
                         modelReady = ready
                     )
                 }

@@ -60,6 +60,7 @@ internal fun <T> ChipRow(
     options: List<T>,
     selected: T?,
     label: @Composable (T) -> String,
+    enabled: Boolean = true,
     onSelect: (T) -> Unit
 ) {
     Row(
@@ -70,7 +71,8 @@ internal fun <T> ChipRow(
             FilterChip(
                 selected = option == selected,
                 onClick = { onSelect(option) },
-                label = { Text(label(option)) }
+                label = { Text(label(option)) },
+                enabled = enabled
             )
         }
     }

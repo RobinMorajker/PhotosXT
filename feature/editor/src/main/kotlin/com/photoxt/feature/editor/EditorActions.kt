@@ -2,6 +2,7 @@ package com.photoxt.feature.editor
 
 import android.net.Uri
 import com.photoxt.core.datastore.LutEntry
+import com.photoxt.core.ml.EraserModel
 import com.photoxt.core.model.BackgroundMode
 import com.photoxt.core.model.BrushTool
 import com.photoxt.core.model.CropAspect
@@ -178,6 +179,9 @@ interface EraserActions {
     fun addEraseStroke(points: List<Float>) {}
 
     fun clearErase() {}
+
+    /** The model the eraser fills with; the choice is kept in the settings. */
+    fun setEraserModel(model: EraserModel) {}
 
     fun downloadModel() {}
 
