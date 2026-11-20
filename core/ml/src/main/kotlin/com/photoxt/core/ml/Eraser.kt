@@ -86,6 +86,12 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
     /** Whether [model] is on the phone, checked. */
     fun ready(model: EraserModel): Boolean = file(model).length() == model.bytes
 
+    /**
+     * Left once this phone's GPU couldn't build [model] (the A15's Mali can't build LaMa, and
+     * trying costs 28 s), so later loads go straight to the CPU; deleting the models clears it.
+     */
+    fun cpuOnly(model: EraserModel) = File(dir, file(model).name + CPU_ONLY)
+
     /** Bytes the downloaded models take, any left by older pins included. */
     fun sizeOnDisk(): Long = dir.listFiles()?.sumOf { it.length() } ?: 0L
 
@@ -96,7 +102,9 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
 
     /** Files no current pin owns, such as LaMa-Dilated's 183 MB or a half-fetched old pin. */
     private fun prune() {
-        val ours = EraserModel.entries.flatMap { listOf(file(it).name, file(it).name + ".part") }
+        val ours = EraserModel.entries.flatMap { m ->
+            listOf("", ".part", CPU_ONLY).map { file(m).name + it }
+        }
         dir.listFiles()?.filter { it.name !in ours }?.forEach { it.delete() }
     }
 
@@ -187,6 +195,7 @@ class EraserModels @Inject constructor(@ApplicationContext context: Context) {
         const val BUFFER = 1 shl 16
         const val HTTP_PARTIAL = 206
         const val NAME_HASH = 12
+        const val CPU_ONLY = ".cpu"
     }
 }
 
@@ -249,15 +258,17 @@ class LiteRtInpainter @Inject constructor(
             context,
             TfLiteInitializationOptions.builder().setEnableGpuDelegateSupport(useGpu).build()
         ).await()
-        val interpreter = withContext(Dispatchers.Default) {
+        val interpreter = withContext(Dispatchers.IO) {
             val runtime = InterpreterApi.Options.TfLiteRuntime.FROM_SYSTEM_ONLY
-            val onGpu = if (useGpu) {
+            val cpuOnly = models.cpuOnly(model)
+            val onGpu = if (useGpu && !cpuOnly.exists()) {
                 val options = InterpreterApi.Options()
                     .setRuntime(runtime)
                     .addDelegateFactory(GpuDelegateFactory())
                 runCatching { InterpreterApi.create(file, options) }
                     .onFailure {
                         PxtLog.w(TAG, "The GPU couldn't run ${model.name}; using the CPU", it)
+                        cpuOnly.createNewFile()
                     }
                     .getOrNull()
             } else {
