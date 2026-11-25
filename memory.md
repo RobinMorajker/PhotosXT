@@ -193,6 +193,8 @@ Durable facts and decisions that a future session would otherwise have to redisc
   - `CollageExportSpeedTest`: 3.2 s (the limit is 5 s).
   - In the app, nine 4.6 MB photos made a 3,840 × 3,840 collage in 2.3 s.
   - With *delete sources* on, MediaStore's trash screen opened only after the collage was written and checked. Undo brought all nine back bit for bit, and the collage stayed.
+  - With the trash fix, the nine left the album the moment they were trashed.
+  - The test photos, drafts and check app were cleaned up afterwards.
 - MediaStore guesses *Date taken* for an EXIF time without a zone (no `OffsetTimeOriginal`) from the file's modified time, so such photos show the copy's time and move after a save. Generated test photos need the offset tag for stable dates.
 - The first transfer's notification request can open on top of MediaStore's consent screen; the jobs wait until both are answered.
 - ML Kit's models live in Play services: the manifest's `com.google.mlkit.vision.DEPENDENCIES` fetches them at install only for Play Store installs, so a sideloaded build gets each one on first use. That first call fails with `MlKitException` UNAVAILABLE ("Waiting for the … optional module to be downloaded"); core/ml turns it into `ModelsDownloadingException`, which the editor reports as "still getting this tool ready". The Devanagari text model, the subject model and the face model each did this once on the A15.

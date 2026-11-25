@@ -58,7 +58,10 @@
   - Save with *delete sources* ticked ("9 on this phone · 0 in Google Drive"). The collage was rendered in **2.3 s** and placed, and only then did MediaStore's "move 9 photos to bin?" screen open. After *Allow*, the nine were trashed, the collage stayed, and the snackbar offered Undo.
   - Undo (from Transfers, after the snackbar had gone) opened "move 9 photos out of bin?". After *Allow*, all nine were back, byte for byte the same (MD5), with the collage still there.
   - Library → Collages listed the draft: "9 photos · Saved · 4 minutes ago".
-  - The trash fix is installed on the phone (the build at 16:36). Its own run there (a collage with *delete sources* on, the photos leaving the album at once, then Undo) waited for the phone to be unlocked: it had locked during the build.
+  - With the trash fix (the build at 16:36, run at 19:56 once Robin had unlocked the phone), a second collage was made with *delete sources* on:
+    - The nine photos left the album the moment they were trashed. The index pass logged "0 changed, 9 removed".
+    - Undo (from Transfers, since the snackbar's 10 s had passed) brought them back ("9 changed"), byte for byte the same.
+    - The second collage was byte for byte the first.
 - 200% text was checked by the screenshot tests, not on the phone; that would need changing Robin's font size there.
 
 ## Not done
@@ -67,7 +70,12 @@
 
 ## Committing
 - One commit in the cloud clone. It came to the laptop as `build/cowork/p8/phase8.bundle` and was fast-forwarded onto `main` there with Windows git through WPSC. Not pushed. Robin's own change to `photoxt-build-prompt.md` (its tables reformatted) was left as it was, uncommitted.
-- The phone's test photos (`Pictures/PhotoXT p8 test`) and the helper files in `build/cowork/p8/` stay until the trash fix's run on the phone is done.
+- A second commit records the trash fix's run on the phone and the clean-up.
+- Clean-up on the phone (2026-11-25, 20:00), with `build/cowork/p8/cleanup.cmd`:
+  - Both test drafts deleted in Library → Collages; their pictures went with them.
+  - The 4K check app uninstalled.
+  - The test photos, both collages and `/data/local/tmp/p8` deleted.
+- The helper files stay in `build/cowork/p8/`, as for earlier phases.
 
 ## Problems met
 - The cloud workspace restarted overnight, and swap had to be switched back on.
