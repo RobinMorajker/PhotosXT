@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Resources
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -40,8 +41,10 @@ import com.photoxt.core.database.TransferJobEntity
 import com.photoxt.core.model.ConflictPolicy
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.WaitFor
+import com.photoxt.core.transfer.TransferEvent
 import com.photoxt.core.transfer.consentUri
 import com.photoxt.core.transfer.mediaStoreRequest
+import com.photoxt.core.transfer.scopeAccount
 import com.photoxt.core.transfer.source
 import com.photoxt.core.transfer.target
 import kotlinx.coroutines.delay
@@ -139,9 +142,7 @@ private fun DriveScopePrompt(
     ) { result ->
         asking?.let { viewModel.consentResult(it, result.data) }
     }
-    val account = waiting.firstOrNull { it.waitFor == WaitFor.DRIVE_SCOPE }?.let { job ->
-        job.target?.account?.takeIf { job.target?.isDrive == true } ?: job.source.account
-    }
+    val account = waiting.firstOrNull { it.waitFor == WaitFor.DRIVE_SCOPE }?.scopeAccount
     // Keyed on the account, not the whole list: a change while Google answers mustn't cancel it.
     LaunchedEffect(account, asking) {
         if (asking != null) {
@@ -268,6 +269,8 @@ private fun FinishedSnackbars(
                         event.failed
                     )
 
+                event.op == TransferOp.COLLAGE && event.done > 0 -> collageMessage(resources, event)
+
                 // The heart shows a favorite at once; only a failure needs saying.
                 event.done == 0 || event.op.message == null -> return@collect
 
@@ -299,6 +302,20 @@ private fun FinishedSnackbars(
     }
 }
 
+/** A collage saved, with its photos binned; or an Undo bringing them back (spec §4.11). */
+private fun collageMessage(resources: Resources, event: TransferEvent): String = when {
+    event.isUndo -> resources.getQuantityString(R.plurals.transfer_restored, event.done, event.done)
+
+    event.trashed > 0 -> resources.getQuantityString(
+        R.plurals.collage_saved_trashed,
+        event.trashed,
+        event.title,
+        event.trashed
+    )
+
+    else -> resources.getString(R.string.collage_saved, event.title)
+}
+
 private val TransferOp.message: Int?
     get() = when (this) {
         TransferOp.COPY -> R.plurals.transfer_copied
@@ -314,6 +331,7 @@ private val TransferOp.message: Int?
         TransferOp.EDIT -> R.plurals.transfer_edited
         TransferOp.EDIT_COPY -> R.plurals.transfer_edit_copied
         TransferOp.REVERT -> R.plurals.transfer_reverted
+        TransferOp.COLLAGE -> null
         TransferOp.FAVORITE, TransferOp.UNFAVORITE -> null
     }
 

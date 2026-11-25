@@ -8,11 +8,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import com.photoxt.core.model.MediaList
 import com.photoxt.core.ui.RequireUnlocked
+import com.photoxt.feature.collage.CollageScreen
 import com.photoxt.feature.editor.EditorScreen
 import com.photoxt.feature.library.VaultViewerScreen
 import com.photoxt.feature.player.PlayerScreen
@@ -88,9 +90,7 @@ private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<Na
                 startAt = key.startAt
             )
         }
-        entry<EditorKey> { key ->
-            EditorScreen(mediaId = key.mediaId, onClose = { navigation.closeOverlay(key) })
-        }
+        editingEntries(navigation)
         entry<VaultViewerKey> { key ->
             VaultViewerScreen(startIndex = key.index, onClose = { navigation.closeOverlay(key) })
         }
@@ -115,6 +115,20 @@ private fun overlayEntries(navigation: NavigationState): (NavKey) -> NavEntry<Na
             )
         }
     }
+
+/** The editor and the collage studio (spec §4.10, §4.11). */
+private fun EntryProviderScope<NavKey>.editingEntries(navigation: NavigationState) {
+    entry<EditorKey> { key ->
+        EditorScreen(mediaId = key.mediaId, onClose = { navigation.closeOverlay(key) })
+    }
+    entry<CollageKey> { key ->
+        CollageScreen(
+            draftId = key.draftId,
+            mediaIds = key.mediaIds,
+            onClose = { navigation.closeOverlay(key) }
+        )
+    }
+}
 
 /** [content] behind the Hidden and vault lock when [private], else as it is. */
 @Composable

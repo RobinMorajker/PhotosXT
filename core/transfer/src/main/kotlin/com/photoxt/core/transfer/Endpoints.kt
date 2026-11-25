@@ -3,6 +3,7 @@ package com.photoxt.core.transfer
 import com.photoxt.core.database.AlbumEntity
 import com.photoxt.core.database.MediaEntity
 import com.photoxt.core.database.TransferJobEntity
+import com.photoxt.core.model.CollageOutput
 import com.photoxt.core.model.ExportOptions
 import com.photoxt.core.model.SourceType
 import kotlinx.serialization.Serializable
@@ -57,7 +58,9 @@ data class Destination(
     /** A new top-level Drive folder becomes a tracked album once made (*New album*). */
     val track: Boolean = false,
     /** What an edit job renders (spec §4.10). */
-    val edit: EditPayload? = null
+    val edit: EditPayload? = null,
+    /** What a collage job renders (spec §4.11). */
+    val collage: CollagePayload? = null
 ) {
     val isDrive: Boolean get() = source == SourceType.DRIVE
 }
@@ -95,7 +98,9 @@ data class JobProgress(
     /** Edits: the recipe the item had before this save, which Undo puts back. */
     val previous: String? = null,
     /** Edits: the recipe as rendered, with what it found again in this photo (a paste). */
-    val recipe: String? = null
+    val recipe: String? = null,
+    /** The account whose full Drive access the job waits for, when neither end names it. */
+    val scopeAccount: String? = null
 )
 
 /**
@@ -107,6 +112,19 @@ data class EditPayload(
     val recipe: String,
     val options: ExportOptions = ExportOptions(),
     val name: String? = null
+)
+
+/**
+ * A collage job's work (spec §4.11, Export): the project as JSON, how to write it, the draft it
+ * came from (which records the photo made), and with *delete sources* the photos that go to the
+ * trash once the collage is saved and checked.
+ */
+@Serializable
+data class CollagePayload(
+    val project: String,
+    val output: CollageOutput = CollageOutput(),
+    val draftId: String? = null,
+    val trash: List<FileRef> = emptyList()
 )
 
 internal val TransferJson = Json {
@@ -130,6 +148,11 @@ val TransferJobEntity.target: Destination?
 
 val TransferJobEntity.outcome: FileRef?
     get() = result?.let { TransferJson.decodeFromString(FileRef.serializer(), it) }
+
+/** The Google account whose full Drive access this waiting job needs (spec §2, scope upgrade). */
+val TransferJobEntity.scopeAccount: String?
+    get() = saved.scopeAccount ?: target?.account?.takeIf { target?.isDrive == true }
+        ?: source.account
 
 internal val TransferJobEntity.saved: JobProgress
     get() = progress?.let { TransferJson.decodeFromString(JobProgress.serializer(), it) }

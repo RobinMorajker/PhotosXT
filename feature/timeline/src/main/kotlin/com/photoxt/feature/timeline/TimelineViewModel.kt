@@ -29,6 +29,8 @@ import com.photoxt.core.media.MediaAccessMonitor
 import com.photoxt.core.media.MediaRef
 import com.photoxt.core.media.thumbnailOf
 import com.photoxt.core.model.AlbumType
+import com.photoxt.core.model.COLLAGE_MAX_PHOTOS
+import com.photoxt.core.model.COLLAGE_MIN_PHOTOS
 import com.photoxt.core.model.ClipboardMode
 import com.photoxt.core.model.DateGrouping
 import com.photoxt.core.model.ItemSort
@@ -526,6 +528,22 @@ class TimelineFileOps internal constructor(
     fun comparePair(): Pair<String, String>? {
         val pair = selection.value.entries.sortedByDescending { it.value }
         return if (pair.size == 2) pair[0].key to pair[1].key else null
+    }
+
+    /**
+     * The selected photos for a collage (spec §4.11), oldest first, ending the selection; null
+     * unless 2 to 20 of the selected items are photos.
+     */
+    suspend fun collagePhotos(): List<String>? {
+        val oldestFirst = selection.value.entries.sortedBy { it.value }.map { it.key }
+        val photos = oldestFirst.chunked(MAX_SQL_VARIABLES)
+            .flatMap { mediaDao.viewerItems(it) }
+            .filter { it.kind == MediaKind.IMAGE }
+            .mapTo(HashSet()) { it.id }
+        val ids = oldestFirst.filter { it in photos }
+        if (ids.size !in COLLAGE_MIN_PHOTOS..COLLAGE_MAX_PHOTOS) return null
+        selection.value = emptyMap()
+        return ids
     }
 
     /** What to hand to the share sheet, or null when more than [MAX_SHARE] items are selected. */

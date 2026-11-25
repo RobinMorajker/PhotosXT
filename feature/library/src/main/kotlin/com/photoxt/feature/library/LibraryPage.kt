@@ -21,6 +21,11 @@ enum class LibraryPage(val title: Int, val body: Int, val icon: Int) {
         R.string.library_screenshots_body,
         DesignR.drawable.ic_image
     ),
+    COLLAGES(
+        R.string.library_collages,
+        R.string.library_collages_body,
+        DesignR.drawable.ic_collage
+    ),
     TRASH(R.string.library_trash, R.string.library_trash_body, DesignR.drawable.ic_delete),
     HIDDEN(R.string.hidden_title, R.string.library_hidden_body, DesignR.drawable.ic_visibility_off),
     VAULT(R.string.vault_title, R.string.library_vault_body, DesignR.drawable.ic_lock),

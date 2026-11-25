@@ -1,8 +1,10 @@
 package com.photoxt.core.media
 
+import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
+import android.os.Bundle
 import android.provider.MediaStore
 import android.provider.MediaStore.Files.FileColumns
 import android.provider.MediaStore.MediaColumns
@@ -60,6 +62,12 @@ interface MediaStoreReader {
 
     /** The items among [ids] that PhotoXT can see on [volume]. */
     fun fetch(volume: String, ids: Collection<Long>): List<DeviceMedia>
+
+    /**
+     * The ids of items on [volume] put in the trash after [sinceGeneration]. Trashing is an update
+     * to MediaStore, not a delete, and other queries no longer show the item at all.
+     */
+    fun trashedSince(volume: String, sinceGeneration: Long): Set<Long>
 }
 
 class ContentResolverMediaStore @Inject constructor(
@@ -112,6 +120,27 @@ class ContentResolverMediaStore @Inject constructor(
                 buildList { while (cursor.moveToNext()) columns.read(cursor, volume)?.let(::add) }
             }
         }
+
+    override fun trashedSince(volume: String, sinceGeneration: Long): Set<Long> {
+        val args = Bundle().apply {
+            putString(
+                ContentResolver.QUERY_ARG_SQL_SELECTION,
+                "$PHOTOS_AND_VIDEOS AND ${MediaColumns.GENERATION_MODIFIED} > ?"
+            )
+            putStringArray(
+                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
+                arrayOf(sinceGeneration.toString())
+            )
+            putInt(MediaStore.QUERY_ARG_MATCH_TRASHED, MediaStore.MATCH_ONLY)
+        }
+        val uri = MediaStore.Files.getContentUri(volume)
+        return context.contentResolver.query(uri, arrayOf(MediaColumns._ID), args, null)
+            ?.use { cursor ->
+                HashSet<Long>(cursor.count).apply {
+                    while (cursor.moveToNext()) add(cursor.getLong(0))
+                }
+            }.orEmpty()
+    }
 
     private fun query(
         volume: String,

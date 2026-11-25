@@ -197,7 +197,15 @@ class PhotoInputs(
 
         fun build(source: SourceImage, recipe: EditRecipe, assets: EditAssets): PhotoInputs {
             val size = SourceImage.fit(source.size, GUIDE_EDGE)
-            val guide = source.decodeScaled(GUIDE_EDGE, size).mutableCopy()
+            return fromGuide(source.decodeScaled(GUIDE_EDGE, size).mutableCopy(), recipe, assets)
+        }
+
+        /**
+         * The inputs from [guide], the whole raster at [GUIDE_EDGE] or less, mutable: a
+         * collage cell's proxy (spec §4.11). Erasures are baked into it.
+         */
+        fun fromGuide(guide: Bitmap, recipe: EditRecipe, assets: EditAssets): PhotoInputs {
+            val size = Size(guide.width, guide.height)
             bakeErasures(guide, recipe.erasures, assets, Box.WHOLE)
             val soft = Blur.box(guide, max(1, (size.longEdge * SOFT_RADIUS).roundToInt()))
             val blurred = Blur.box(guide, max(2, (size.longEdge * BLUR_RADIUS).roundToInt()))

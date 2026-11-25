@@ -20,7 +20,8 @@ import kotlinx.coroutines.withContext
  * Per volume it keeps MediaStore's version and generation. A pass reads only items whose
  * generation moved, then diffs ids: ids that disappeared are deleted, and ids it has never seen
  * are fetched directly (photos picked later under Android 14's limited access keep their old
- * generation, and an item can land between the scan and the diff). It rescans the whole volume
+ * generation, and an item can land between the scan and the diff); a pass without the diff
+ * still drops items trashed since the last one. It rescans the whole volume
  * only when MediaStore's version changes (its database was rebuilt) or the time zone changes
  * (stored day keys moved). Re-running a pass is harmless.
  */
@@ -69,7 +70,15 @@ class MediaStoreIndexer @Inject constructor(
                 changed += write(batch, zone)
             }
         }
-        val gone = if (diff || full) diffIds(volume, zone) { changed += it } else emptyList()
+        val gone = when {
+            diff || full -> diffIds(volume, zone) { changed += it }
+
+            // A trash (PhotoXT's own Delete too) moved the generation without a delete.
+            generation > cursor.generation ->
+                store.trashedSince(volume, cursor.generation).map(::deviceMediaId)
+
+            else -> emptyList()
+        }
         database.withTransaction {
             gone.chunked(MAX_SQL_VARIABLES).forEach { dao.deleteMedia(it) }
             dao.saveCursor(MediaStoreCursorEntity(volume, version, generation, zone.id))

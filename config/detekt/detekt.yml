@@ -10,11 +10,12 @@ complexity:
   # column. A Hilt constructor lists the class's collaborators; review judges those, not a count.
   LongParameterList:
     ignoreAnnotated: ['Composable', 'GET', 'POST', 'PATCH', 'DELETE', 'Query', 'Inject', 'AssistedInject']
-  # A Room DAO is a list of queries, and a Room database the list of its DAOs. Private helpers
-  # (small composables above all) do not count, and a ViewModel has one function per UI event,
-  # so classes get a few more than files.
+  # A Room DAO is a list of queries, a Room database the list of its DAOs, and the Hilt module
+  # that provides them one function per DAO. Private helpers (small composables above all) do
+  # not count, and a ViewModel has one function per UI event, so classes get a few more than
+  # files.
   TooManyFunctions:
-    ignoreAnnotated: ['Dao', 'Database']
+    ignoreAnnotated: ['Dao', 'Database', 'Module']
     ignorePrivate: true
     thresholdInClasses: 15
     # A source's interface (DeviceStore: MediaStore's reads and writes) lists its operations.

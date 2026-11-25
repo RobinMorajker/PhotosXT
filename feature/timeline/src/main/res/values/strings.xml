@@ -30,6 +30,8 @@
 
     <string name="action_share">Share</string>
     <string name="action_compare">Compare</string>
+    <string name="action_make_collage">Make collage</string>
+    <string name="collage_photo_count">A collage takes 2 to 20 photos. Videos are left out.</string>
     <string name="action_cancel_selection">Cancel selection</string>
     <string name="action_back">Back</string>
     <plurals name="album_item_count">

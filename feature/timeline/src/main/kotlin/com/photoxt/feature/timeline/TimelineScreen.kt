@@ -85,12 +85,14 @@ import java.time.LocalDate
 import kotlinx.coroutines.launch
 
 /**
- * Where a timeline sends the user: the viewer, Compare for two selected items, a nested Drive
- * album, or the Drive browser to relink an unavailable album.
+ * Where a timeline sends the user: the viewer, Compare for two selected items, the collage
+ * studio for 2 to 20 photos, a nested Drive album, or the Drive browser to relink an
+ * unavailable album.
  */
 class TimelineNavigation(
     val onOpen: (ViewerStart) -> Unit = {},
     val onCompare: (firstId: String, secondId: String) -> Unit = { _, _ -> },
+    val onCollage: (mediaIds: List<String>) -> Unit = {},
     val onOpenAlbum: (id: String, title: String) -> Unit = { _, _ -> },
     val onRelink: (albumId: String, accountId: String) -> Unit = { _, _ -> }
 )
@@ -298,6 +300,18 @@ private fun selectionCallbacks(
             navigation.onCompare(newer, older)
         }
     }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val collage: () -> Unit = {
+        scope.launch {
+            val ids = viewModel.fileOps.collagePhotos()
+            if (ids != null) {
+                navigation.onCollage(ids)
+            } else {
+                Toast.makeText(context, R.string.collage_photo_count, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     return SelectionCallbacks(
         onShare = rememberShare(viewModel),
         onCut = { viewModel.fileOps.clip(ClipboardMode.CUT) },
@@ -308,6 +322,8 @@ private fun selectionCallbacks(
         onExportPdf = fileOps.exportPdf,
         onCopyToClipboard = fileOps.copyToClipboard.takeIf { selected == 1 },
         onCompare = compare.takeIf { selected == 2 },
+        // Not from the Hidden list: the collage would show its photos outside it.
+        onCollage = collage.takeIf { selected >= 2 && viewModel.list != MediaList.HIDDEN },
         onPasteEdits = { onDialog(TimelineDialog.PASTE_EDITS) }.takeIf { canPasteEdits }
     )
 }

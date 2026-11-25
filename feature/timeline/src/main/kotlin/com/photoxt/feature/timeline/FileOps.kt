@@ -61,6 +61,8 @@ data class SelectionCallbacks(
     val onCopyToClipboard: (() -> Unit)? = null,
     /** Set when exactly two items are selected. */
     val onCompare: (() -> Unit)? = null,
+    /** Set when two or more items are selected (spec §4.11: a collage of 2 to 20 photos). */
+    val onCollage: (() -> Unit)? = null,
     /** Set when edits are copied (spec §4.10, batch apply). */
     val onPasteEdits: (() -> Unit)? = null,
     val organize: SelectionOrganizeCallbacks = SelectionOrganizeCallbacks()
@@ -154,6 +156,7 @@ private fun MoreActions(actions: SelectionCallbacks) {
             MenuItem(R.string.action_move_to_vault) { close(organize.onVault) }
             HorizontalDivider()
             actions.onCompare?.let { MenuItem(R.string.action_compare) { close(it) } }
+            actions.onCollage?.let { MenuItem(R.string.action_make_collage) { close(it) } }
             MenuItem(R.string.action_rename) { close(actions.onRename) }
             MenuItem(R.string.action_convert_jpeg) { close(actions.onConvert) }
             MenuItem(R.string.action_export_pdf) { close(actions.onExportPdf) }

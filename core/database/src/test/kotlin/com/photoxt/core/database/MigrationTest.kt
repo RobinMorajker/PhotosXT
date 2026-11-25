@@ -257,6 +257,27 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun version7To8KeepsRowsAndAddsCollageDrafts() {
+        helper.createDatabase(NAME, 7).use { db ->
+            db.execSQL(
+                "INSERT INTO edit_recipe (mediaId, opsJson, schemaVersion, originalPath, " +
+                    "originalMd5, originalBytes, originalMime, originalName, savedAt) VALUES " +
+                    "('device:7', '{}', 1, '/o', 'abc', 100, 'image/jpeg', 'IMG_7.jpg', 9)"
+            )
+        }
+
+        helper.runMigrationsAndValidate(NAME, 8, true).use { db ->
+            assertEquals(1, db.count("edit_recipe"))
+            db.execSQL(
+                "INSERT INTO collage_project (id, layoutJson, itemRefs, createdAt, updatedAt) " +
+                    "VALUES ('c1', '{}', 'device:7\ndevice:8', 1, 2)"
+            )
+            // A draft refers to its photos; a photo going doesn't take the draft with it.
+            assertEquals(1, db.count("collage_project"))
+        }
+    }
+
     private fun SupportSQLiteDatabase.count(table: String): Int =
         query("SELECT COUNT(*) FROM $table").use { cursor ->
             cursor.moveToFirst()

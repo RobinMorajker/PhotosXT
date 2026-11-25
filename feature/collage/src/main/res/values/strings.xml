@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The collage studio (spec §4.11). -->
+    <string name="collage_title">Collage</string>
+    <string name="collage_close">Close</string>
+    <string name="collage_undo">Undo</string>
+    <string name="collage_redo">Redo</string>
+    <string name="collage_save">Save</string>
+    <string name="collage_cancel">Cancel</string>
+    <string name="collage_done">Done</string>
+    <string name="collage_back">Back</string>
+    <string name="collage_delete">Delete</string>
+    <string name="collage_delete_named">Delete %1$s</string>
+    <string name="collage_reset_named">Reset %1$s</string>
+    <string name="collage_saving">Saving the collage…</string>
+    <string name="collage_downloading">Getting photos from Google Drive…</string>
+    <string name="collage_finding_faces">Fitting the photos…</string>
+    <string name="collage_error_photos">A collage needs at least two photos.</string>
+    <string name="collage_error_album">That album can\'t take a new photo. Pick another one.</string>
+
+    <!-- Tools -->
+    <string name="collage_tool_layout">Layout</string>
+    <string name="collage_tool_canvas">Canvas</string>
+    <string name="collage_tool_cell">Photo</string>
+    <string name="collage_tool_text">Text</string>
+    <string name="collage_tool_stickers">Stickers</string>
+    <string name="collage_tool_frame">Frame</string>
+    <string name="collage_tool_layers">Layers</string>
+
+    <!-- Layout -->
+    <string name="collage_mode">Mode</string>
+    <string name="collage_mode_grid">Grid</string>
+    <string name="collage_mode_smart">Smart</string>
+    <string name="collage_mode_freeform">Freeform</string>
+    <string name="collage_mode_stitch">Stitch</string>
+    <string name="collage_mode_shapes">Shapes</string>
+    <string name="collage_mode_story">Story</string>
+    <string name="collage_mode_before_after">Before and after</string>
+    <plurals name="collage_templates_count">
+        <item quantity="one">%1$,d layout for these photos</item>
+        <item quantity="other">%1$,d layouts for these photos</item>
+    </plurals>
+    <string name="collage_template_n">Layout %1$d of %2$d</string>
+    <string name="collage_smart_hint">Cells shaped to fit your photos, without cutting faces.</string>
+    <string name="collage_fit_again">Fit again</string>
+    <string name="collage_freeform_hint">Drag photos to move them, pinch to size them and twist to turn them. Change their order in Layers.</string>
+    <string name="collage_scatter">Lay out again</string>
+    <string name="collage_stitch_hint">Every photo whole, in one long picture.</string>
+    <string name="collage_down">Top to bottom</string>
+    <string name="collage_across">Side by side</string>
+    <string name="collage_heart">Heart</string>
+    <string name="collage_circle">Circle</string>
+    <string name="collage_hexagon">Hexagon</string>
+    <string name="collage_letters">Letters</string>
+    <string name="collage_side_by_side">Side by side</string>
+    <string name="collage_stacked">One above the other</string>
+    <string name="collage_before_after_hint">Before and after uses the first two photos. Swap photos to change them.</string>
+    <string name="collage_before">Before</string>
+    <string name="collage_after">After</string>
+
+    <!-- Canvas -->
+    <string name="collage_shape">Shape</string>
+    <string name="collage_a4">A4 print</string>
+    <string name="collage_letter">Letter print</string>
+    <string name="collage_custom_size">Custom (%1$d × %2$d)</string>
+    <string name="collage_auto">From the photos</string>
+    <string name="collage_stitch_shape_hint">A stitch takes its shape from its photos.</string>
+    <string name="collage_spacing">Spacing</string>
+    <string name="collage_margin">Outer margin</string>
+    <string name="collage_corners">Corner radius</string>
+    <string name="collage_border">Border</string>
+    <string name="collage_background">Background</string>
+    <string name="collage_bg_color">Colour</string>
+    <string name="collage_bg_gradient">Gradient</string>
+    <string name="collage_bg_blurred">Blurred photo</string>
+    <string name="collage_bg_pattern">Pattern</string>
+    <string name="collage_bg_none">Transparent</string>
+    <string name="collage_angle">Direction</string>
+    <string name="collage_pattern_dots">Dots</string>
+    <string name="collage_pattern_stripes">Stripes</string>
+    <string name="collage_pattern_checks">Checks</string>
+    <string name="collage_pattern_grid">Grid</string>
+    <string name="collage_transparent_hint">PNG and WebP keep it see-through; JPEG saves it white.</string>
+    <string name="collage_custom_title">Custom size</string>
+    <string name="collage_custom_hint">In pixels, up to 7,680 each way.</string>
+    <string name="collage_width">Width</string>
+    <string name="collage_height">Height</string>
+
+    <!-- Photo (cell) -->
+    <string name="collage_cell_hint">Tap a photo to change it. Drag it to move it in its cell, pinch to zoom and twist to turn it. Press and hold, then drag it onto another photo to swap them.</string>
+    <string name="collage_replace">Replace</string>
+    <string name="collage_replace_title">Replace with</string>
+    <string name="collage_photo_choice">Photo %1$d</string>
+    <string name="collage_flip_h">Flip across</string>
+    <string name="collage_flip_v">Flip upside down</string>
+    <string name="collage_turn">Turn 90°</string>
+    <string name="collage_reset_cell">Reset</string>
+    <string name="collage_size">Size</string>
+    <string name="collage_zoom">Zoom</string>
+    <string name="collage_turning">Turn</string>
+    <string name="collage_filter">Filter</string>
+    <string name="collage_intensity">Intensity</string>
+    <string name="collage_adjust">Adjust</string>
+    <string name="collage_brightness">Brightness</string>
+    <string name="collage_contrast">Contrast</string>
+    <string name="collage_highlights">Highlights</string>
+    <string name="collage_shadows">Shadows</string>
+    <string name="collage_saturation">Saturation</string>
+    <string name="collage_warmth">Warmth</string>
+    <string name="collage_sharpen">Sharpen</string>
+    <string name="collage_vignette">Vignette</string>
+    <string name="collage_look_all">Use this look on every photo</string>
+    <string name="look_none">None</string>
+    <string name="look_vivid">Vivid</string>
+    <string name="look_warm">Warm</string>
+    <string name="look_cool">Cool</string>
+    <string name="look_mono">Mono</string>
+    <string name="look_noir">Noir</string>
+    <string name="look_sepia">Sepia</string>
+    <string name="look_matte">Matte</string>
+    <string name="look_vintage">Vintage</string>
+    <string name="look_teal_orange">Teal and orange</string>
+    <string name="look_pastel">Pastel</string>
+    <string name="look_other">Other</string>
+
+    <!-- Text and stickers -->
+    <string name="collage_add_text">Add text</string>
+    <string name="collage_edit_text">Edit text</string>
+    <string name="collage_text">Text</string>
+    <string name="collage_text_hint">Add text, then drag it to move it. Pinch to size it and twist to turn it; tap it again to change the words.</string>
+    <string name="collage_bold">Bold</string>
+    <string name="collage_outline">Outline</string>
+    <string name="collage_text_shadow">Shadow</string>
+    <string name="collage_text_background">Background</string>
+    <string name="collage_align_start">Align left</string>
+    <string name="collage_align_center">Centre</string>
+    <string name="collage_align_end">Align right</string>
+    <string name="font_sans">Sans serif</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_mono">Monospace</string>
+    <string name="font_condensed">Condensed</string>
+    <string name="font_handwriting">Handwriting</string>
+    <string name="font_devanagari_sans">देवनागरी Sans</string>
+    <string name="font_devanagari_serif">देवनागरी Serif</string>
+    <string name="collage_sticker_hint">Tap a sticker to add it. Drag it to move it, pinch to size it and twist to turn it.</string>
+    <string name="collage_add_sticker_named">Add the sticker %1$s</string>
+    <string name="collage_sticker">Sticker</string>
+    <string name="collage_shape_layer">Shape</string>
+
+    <!-- Frame -->
+    <string name="collage_frame_none">None</string>
+    <string name="collage_frame_solid">Border</string>
+    <string name="collage_frame_polaroid">Instant photo</string>
+    <string name="collage_frame_rounded">Rounded</string>
+    <string name="collage_frame_width">Width</string>
+
+    <!-- Layers -->
+    <string name="collage_layers_empty">Text and stickers you add are listed here.</string>
+    <string name="collage_photos">Photos</string>
+    <string name="collage_photo_n">Photo %1$d</string>
+    <string name="collage_layer_up">Bring %1$s forward</string>
+    <string name="collage_layer_down">Send %1$s back</string>
+
+    <!-- Colours -->
+    <string name="color_white">White</string>
+    <string name="color_black">Black</string>
+    <string name="color_grey">Grey</string>
+    <string name="color_light_grey">Light grey</string>
+    <string name="color_red">Red</string>
+    <string name="color_orange">Orange</string>
+    <string name="color_yellow">Yellow</string>
+    <string name="color_green">Green</string>
+    <string name="color_blue">Blue</string>
+    <string name="color_purple">Purple</string>
+    <string name="color_pink">Pink</string>
+    <string name="color_beige">Beige</string>
+    <string name="color_navy">Navy</string>
+
+    <!-- Export -->
+    <string name="collage_export_title">Save the collage</string>
+    <string name="collage_format">Format</string>
+    <string name="collage_quality">Quality</string>
+    <string name="collage_size_own">Full size</string>
+    <string name="collage_size_choice">%1$s · %2$d × %3$d</string>
+    <string name="collage_save_to">Save to</string>
+    <string name="collage_pick_album">Pick an album</string>
+    <string name="collage_album_drive">%1$s (Google Drive)</string>
+    <plurals name="collage_delete_sources">
+        <item quantity="one">Move %1$,d photo to the trash after saving</item>
+        <item quantity="other">Move %1$,d photos to the trash after saving</item>
+    </plurals>
+    <string name="collage_delete_sources_where">%1$,d on this phone · %2$,d in Google Drive</string>
+    <string name="collage_delete_sources_after">Only once the collage is saved and checked. You can restore them from the trash for 30 days.</string>
+    <string name="collage_delete_sources_drive">Moving Drive photos needs full Google Drive access; PhotoXT asks first.</string>
+
+    <!-- Drafts -->
+    <string name="collage_drafts_title">Collages</string>
+    <string name="collage_drafts_empty">No collages yet</string>
+    <string name="collage_drafts_empty_body">Select 2 to 20 photos, then More → Make collage. Your work is kept here as you go.</string>
+    <plurals name="collage_draft_photos">
+        <item quantity="one">%1$,d photo</item>
+        <item quantity="other">%1$,d photos</item>
+    </plurals>
+    <string name="collage_draft_open">Open the collage of %1$s, changed %2$s</string>
+    <string name="collage_draft_saved">Saved · %1$s</string>
+    <string name="collage_draft_delete">Delete draft</string>
+    <string name="collage_draft_delete_title">Delete this draft?</string>
+    <string name="collage_draft_delete_body">Its photos and any collage you saved from it stay.</string>
+
+    <!-- TalkBack -->
+    <string name="collage_a11y_photo">Photo %1$d of %2$d</string>
+    <string name="collage_a11y_swap_next">Swap with the next photo</string>
+    <string name="collage_a11y_layer">Layer: %1$s</string>
+    <string name="collage_a11y_divider">Divider between photos</string>
+    <string name="collage_a11y_divider_back">Move the divider left or up</string>
+    <string name="collage_a11y_divider_forward">Move the divider right or down</string>
+
+    <!-- History steps -->
+    <string name="collage_step_open">Opened</string>
+    <string name="collage_step_mode">Mode</string>
+    <string name="collage_step_template">Layout</string>
+    <string name="collage_step_smart">Smart layout</string>
+    <string name="collage_step_scatter">Laid out again</string>
+    <string name="collage_step_shape">Shape</string>
+    <string name="collage_step_canvas">Canvas</string>
+    <string name="collage_step_background">Background</string>
+    <string name="collage_step_frame">Frame</string>
+    <string name="collage_step_divider">Cell size</string>
+    <string name="collage_step_photo">Photo moved</string>
+    <string name="collage_step_flip">Flip</string>
+    <string name="collage_step_turn">Turn</string>
+    <string name="collage_step_reset">Reset</string>
+    <string name="collage_step_replace">Photo replaced</string>
+    <string name="collage_step_swap">Photos swapped</string>
+    <string name="collage_step_order">Order</string>
+    <string name="collage_step_look">Look</string>
+    <string name="collage_step_text">Text</string>
+    <string name="collage_step_sticker">Sticker</string>
+    <string name="collage_step_layer">Layer moved</string>
+    <string name="collage_step_delete">Deleted</string>
+</resources>

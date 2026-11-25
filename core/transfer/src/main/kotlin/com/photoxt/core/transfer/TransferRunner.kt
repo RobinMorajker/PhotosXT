@@ -311,6 +311,7 @@ class TransferNotifications @Inject constructor(
         TransferOp.CONVERT -> R.string.transfer_notification_converting
         TransferOp.EDIT, TransferOp.EDIT_COPY -> R.string.transfer_notification_editing
         TransferOp.REVERT -> R.string.transfer_notification_reverting
+        TransferOp.COLLAGE -> R.string.transfer_notification_collage
         else -> R.string.transfer_notification_updating
     }
 

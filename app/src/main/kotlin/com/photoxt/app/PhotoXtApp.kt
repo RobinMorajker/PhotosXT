@@ -50,6 +50,7 @@ import com.photoxt.core.ui.PrivateLock
 import com.photoxt.feature.albums.AlbumGroupScreen
 import com.photoxt.feature.albums.AlbumsScreen
 import com.photoxt.feature.albums.DriveBrowserScreen
+import com.photoxt.feature.collage.CollageDraftsScreen
 import com.photoxt.feature.library.BookmarkNavigation
 import com.photoxt.feature.library.BookmarksScreen
 import com.photoxt.feature.library.HiddenScreen
@@ -187,6 +188,7 @@ private fun appEntries(
     val timelineNavigation = TimelineNavigation(
         onOpen = { start -> navigation.openOverlay(ViewerKey(start)) },
         onCompare = { first, second -> navigation.openOverlay(CompareKey(first, second)) },
+        onCollage = { ids -> navigation.openOverlay(CollageKey(mediaIds = ids)) },
         onOpenAlbum = { id, title -> navigation.open(AlbumKey(id, title)) },
         onRelink = { albumId, accountId -> navigation.open(DriveBrowserKey(accountId, albumId)) }
     )
@@ -217,6 +219,12 @@ private fun appEntries(
     entry<StorageKey> { StorageScreen(onBack = navigation::goBack) }
     entry<TrashKey> { TrashScreen(onBack = navigation::goBack) }
     entry<TransfersKey> { TransfersScreen(onBack = navigation::goBack) }
+    entry<CollagesKey> {
+        CollageDraftsScreen(
+            onBack = navigation::goBack,
+            onOpen = { navigation.openOverlay(CollageKey(draftId = it)) }
+        )
+    }
     libraryEntries(navigation, onSelectionModeChange, timelineNavigation)
     PlaceholderTabs.forEach { tab -> entry(tab) { TabScreen(tab) } }
 }
@@ -332,6 +340,7 @@ private val LibraryPage.key: NavKey
         LibraryPage.HISTORY -> HistoryKey
         LibraryPage.VIDEOS -> MediaListKey(MediaList.VIDEOS)
         LibraryPage.SCREENSHOTS -> MediaListKey(MediaList.SCREENSHOTS)
+        LibraryPage.COLLAGES -> CollagesKey
         LibraryPage.TRASH -> TrashKey
         LibraryPage.HIDDEN -> HiddenKey
         LibraryPage.VAULT -> VaultKey

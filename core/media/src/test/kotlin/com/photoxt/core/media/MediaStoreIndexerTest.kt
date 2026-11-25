@@ -55,6 +55,15 @@ class MediaStoreIndexerTest {
     }
 
     @Test
+    fun quickPassDropsItemsPutInTheTrash() = runTest {
+        store.put(photo(1), photo(2))
+        indexer.index(UTC)
+        store.trash(1)
+        assertEquals(IndexResult(changed = 0, removed = 1), indexer.index(UTC, diff = false))
+        assertEquals(setOf(2L), indexedIds())
+    }
+
+    @Test
     fun changedItemIsUpdated() = runTest {
         store.put(photo(1))
         indexer.index(UTC)
@@ -183,6 +192,7 @@ private class FakeMediaStore : MediaStoreReader {
     private val mounted = LinkedHashSet<String>()
     val volumesSeen = LinkedHashSet<String>()
     val hidden = HashSet<Long>()
+    private val trashed = HashSet<Long>()
     val scans = ArrayList<Long?>()
     var idQueries = 0
     val fetches = ArrayList<List<Long>>()
@@ -198,6 +208,15 @@ private class FakeMediaStore : MediaStoreReader {
         items[it.id] = it
     }
 
+    /** Trashing updates the item: a new generation, and only the trashed query shows it. */
+    fun trash(id: Long) {
+        val item = items[id] ?: return
+        val generation = generations.getOrDefault(item.volume, 0L) + 1
+        generations[item.volume] = generation
+        itemGeneration[id] = generation
+        trashed += id
+    }
+
     fun delete(id: Long) {
         val removed = items.remove(id) ?: return
         generations[removed.volume] = generations.getOrDefault(removed.volume, 0L) + 1
@@ -207,8 +226,9 @@ private class FakeMediaStore : MediaStoreReader {
         mounted -= volume
     }
 
-    private fun visible(volume: String) =
-        items.values.filter { it.volume == volume && it.volume in mounted && it.id !in hidden }
+    private fun visible(volume: String) = items.values.filter {
+        it.volume == volume && it.volume in mounted && it.id !in hidden && it.id !in trashed
+    }
 
     override fun volumes(): Set<String> = mounted.toSet()
 
@@ -238,4 +258,9 @@ private class FakeMediaStore : MediaStoreReader {
         fetches += ids.toList()
         return visible(volume).filter { it.id in ids }
     }
+
+    override fun trashedSince(volume: String, sinceGeneration: Long): Set<Long> =
+        trashed.filterTo(HashSet()) {
+            items[it]?.volume == volume && itemGeneration.getValue(it) > sinceGeneration
+        }
 }

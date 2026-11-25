@@ -63,10 +63,16 @@ data class TransferRowState(val batch: TransferBatchRow) {
             (batch.done + batch.skipped).toFloat() / batch.total.coerceAtLeast(1)
         }
 
-    /** Undo applies to a finished move or trash that moved something and wasn't undone. */
+    /**
+     * Undo applies to a finished move or trash that moved something and wasn't undone, and to a
+     * collage that binned its photos (its own job and at least one trash job done).
+     */
     val undoable: Boolean
         get() = finished && !batch.undone && batch.undoOf == null && batch.done > 0 &&
-            batch.op in setOf(TransferOp.MOVE, TransferOp.TRASH)
+            (
+                batch.op in setOf(TransferOp.MOVE, TransferOp.TRASH) ||
+                    (batch.op == TransferOp.COLLAGE && batch.done > 1)
+                )
 }
 
 @HiltViewModel
@@ -294,6 +300,7 @@ private val TransferOp.label: Int
         TransferOp.EDIT -> R.string.transfer_op_edit
         TransferOp.EDIT_COPY -> R.string.transfer_op_edit_copy
         TransferOp.REVERT -> R.string.transfer_op_revert
+        TransferOp.COLLAGE -> R.string.transfer_op_collage
     }
 
 private val TransferOp.icon: Int
@@ -324,4 +331,6 @@ private val TransferOp.icon: Int
         TransferOp.EDIT, TransferOp.EDIT_COPY -> DesignR.drawable.ic_tune
 
         TransferOp.REVERT -> DesignR.drawable.ic_history
+
+        TransferOp.COLLAGE -> DesignR.drawable.ic_collage
     }

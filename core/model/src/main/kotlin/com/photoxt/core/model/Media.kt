@@ -139,7 +139,13 @@ enum class TransferOp {
     EDIT_COPY,
 
     /** The original brought back, byte for byte (*Revert to original*). */
-    REVERT
+    REVERT,
+
+    /**
+     * A collage written as a new photo (spec §4.11, Export). With *delete sources* the batch gains
+     * a trash job per source, only once the collage is saved and checked.
+     */
+    COLLAGE
 }
 
 /**

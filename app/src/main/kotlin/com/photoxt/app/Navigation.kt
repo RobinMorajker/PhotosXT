@@ -112,6 +112,10 @@ data class HiddenAlbumKey(val albumId: String, val title: String) : NavKey
 @Serializable
 data object BookmarksKey : NavKey
 
+/** The collages, as drafts to open again (spec §4.11), on the Library stack. */
+@Serializable
+data object CollagesKey : NavKey
+
 /** History (spec §4.9), on the Library stack. */
 @Serializable
 data object HistoryKey : NavKey
@@ -173,6 +177,11 @@ data class SlideshowKey(
 /** The image editor on photo [mediaId] (spec §4.10). */
 @Serializable
 data class EditorKey(val mediaId: String) : NavKey
+
+/** The collage studio (spec §4.11): draft [draftId] again, or a new one of [mediaIds]. */
+@Serializable
+data class CollageKey(val draftId: String? = null, val mediaIds: List<String> = emptyList()) :
+    NavKey
 
 /** A vault item full screen, the [index]th of the vault (spec §4.8). */
 @Serializable

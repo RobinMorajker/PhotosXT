@@ -1,5 +1,6 @@
 package com.photoxt.core.transfer
 
+import androidx.room.withTransaction
 import com.photoxt.core.auth.ConsentRequiredException
 import com.photoxt.core.common.PxtLog
 import com.photoxt.core.database.PxtDatabase
@@ -11,6 +12,7 @@ import com.photoxt.core.media.ThumbnailStore
 import com.photoxt.core.model.TransferOp
 import com.photoxt.core.model.TransferState
 import com.photoxt.core.model.WaitFor
+import com.photoxt.core.render.CollageExporter
 import com.photoxt.core.render.PhotoExporter
 import com.photoxt.core.vault.Vault
 import java.io.IOException
@@ -47,12 +49,14 @@ class TransferEngine @Inject constructor(
     private val clock: Clock,
     vault: Vault,
     thumbnails: ThumbnailStore,
-    exporter: PhotoExporter
+    exporter: PhotoExporter,
+    collageExporter: CollageExporter
 ) {
     private val dao = database.transferDao()
     private val copier = Copier(device, drive, env)
     private val vaultMoves = VaultMoves(database, copier, vault, thumbnails, clock)
     private val edits = EditJobs(database.editDao(), copier, exporter, env.originalsDir, clock)
+    private val collages = CollageJobs(database, copier, collageExporter, clock)
     private val mutex = Mutex()
     private val finishedBatches = MutableSharedFlow<Long>(extraBufferCapacity = EVENTS)
 
@@ -147,6 +151,8 @@ class TransferEngine @Inject constructor(
         TransferOp.EDIT_COPY -> edits.saveCopy(run)
 
         TransferOp.REVERT -> edits.revert(run)
+
+        TransferOp.COLLAGE -> collages.export(run)
     }
 
     /** Favorites sync both ways (spec §4.8): MediaStore's flag, or Drive's star. */
@@ -290,18 +296,30 @@ class TransferEngine @Inject constructor(
         if (end.state == TransferState.FAILED || end.state == TransferState.CANCELLED) {
             copier.discardPartial(run)
             if (job.op in EDIT_OPS) edits.discard(run)
+            if (job.op == TransferOp.COLLAGE) collages.discard(run)
             unfavorited(job)
         }
-        dao.settle(
-            job.id,
-            end.state,
-            end.waitFor,
-            end.error,
-            end.result?.encode(),
-            end.attempts ?: job.attempts,
-            end.next,
-            now
-        )
+        // A collage's trash jobs join the batch with its end, never before (spec §4.11).
+        val follow = if (end.state ==
+            TransferState.DONE
+        ) {
+            CollageJobs.followUps(job, now)
+        } else {
+            emptyList()
+        }
+        database.withTransaction {
+            val settled = dao.settle(
+                job.id,
+                end.state,
+                end.waitFor,
+                end.error,
+                end.result?.encode(),
+                end.attempts ?: job.attempts,
+                end.next,
+                now
+            )
+            if (settled > 0 && follow.isNotEmpty()) dao.insertJobs(follow)
+        }
     }
 
     /**

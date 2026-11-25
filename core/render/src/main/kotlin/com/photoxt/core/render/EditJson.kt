@@ -1,5 +1,6 @@
 package com.photoxt.core.render
 
+import com.photoxt.core.model.CollageProject
 import com.photoxt.core.model.EditRecipe
 import kotlinx.serialization.json.Json
 
@@ -17,4 +18,13 @@ object EditJson {
     fun encode(recipe: EditRecipe): String = json.encodeToString(EditRecipe.serializer(), recipe)
 
     fun decode(text: String): EditRecipe = json.decodeFromString(EditRecipe.serializer(), text)
+}
+
+/** Collage projects as JSON (spec §4.11, drafts and export jobs), written as recipes are. */
+object CollageJson {
+    fun encode(project: CollageProject): String =
+        EditJson.json.encodeToString(CollageProject.serializer(), project)
+
+    fun decode(text: String): CollageProject =
+        EditJson.json.decodeFromString(CollageProject.serializer(), text)
 }

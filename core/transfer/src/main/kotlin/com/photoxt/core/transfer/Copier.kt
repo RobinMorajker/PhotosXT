@@ -572,9 +572,8 @@ internal class Copier(
         return part
     }
 
-    /** Appends the rest of the Drive source to [part], which holds its first [have] bytes. */
-    private suspend fun appendDownload(run: JobRun, part: File, have: Long) {
-        val src = run.src
+    /** Appends the rest of Drive file [src] to [part], which holds its first [have] bytes. */
+    suspend fun appendDownload(run: JobRun, part: File, have: Long, src: FileRef = run.src) {
         drive.download(checkNotNull(src.account), checkNotNull(src.fileId), have).use { input ->
             FileOutputStream(part, have > 0).use { output ->
                 val buffer = ByteArray(BUFFER)

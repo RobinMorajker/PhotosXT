@@ -44,22 +44,24 @@ import javax.inject.Singleton
         BookmarkEntity::class,
         HistoryEntity::class,
         HiddenItemEntity::class,
-        EditRecipeEntity::class
+        EditRecipeEntity::class,
+        CollageProjectEntity::class
     ],
-    version = 7,
+    version = 8,
     // 2 (Phase 2): video resume points. 3 (Phase 3): Google accounts and Drive albums.
     // 4 (Phase 4): offline pins, orphans and albums kept offline.
     // 5 (Phase 5): the transfer queue and the clipboard.
     // 6 (Phase 6): sort keys and dates, album options, groups, virtual and smart albums, pins,
     // bookmarks, history and hidden items; resume points lose their foreign key.
-    // 7 (Phase 7): saved edits and what reverts them.
+    // 7 (Phase 7): saved edits and what reverts them. 8 (Phase 8): collage drafts.
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 3, to = 4, spec = Version3To4::class),
         AutoMigration(from = 4, to = 5),
         AutoMigration(from = 5, to = 6, spec = Version5To6::class),
-        AutoMigration(from = 6, to = 7)
+        AutoMigration(from = 6, to = 7),
+        AutoMigration(from = 7, to = 8)
     ]
 )
 abstract class PxtDatabase : RoomDatabase() {
@@ -94,6 +96,8 @@ abstract class PxtDatabase : RoomDatabase() {
     abstract fun backupDao(): BackupDao
 
     abstract fun editDao(): EditDao
+
+    abstract fun collageDao(): CollageDao
 }
 
 /** Pins moved from a never-set `drive_cache` column to the `offline_pin` table. */
@@ -145,4 +149,7 @@ object DatabaseModule {
 
     @Provides
     fun editDao(database: PxtDatabase): EditDao = database.editDao()
+
+    @Provides
+    fun collageDao(database: PxtDatabase): CollageDao = database.collageDao()
 }

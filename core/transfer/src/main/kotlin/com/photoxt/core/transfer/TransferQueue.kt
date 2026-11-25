@@ -38,7 +38,11 @@ data class TransferEvent(
     val done: Int,
     val failed: Int,
     /** A move or a trash the user can take back. */
-    val undoable: Boolean
+    val undoable: Boolean,
+    /** An Undo's own batch. */
+    val isUndo: Boolean = false,
+    /** A collage's sources moved to the trash with it (spec §4.11). */
+    val trashed: Int = 0
 )
 
 /**
@@ -261,8 +265,10 @@ class TransferQueue @Inject constructor(
 
     /** Google's answer to the full-Drive request for [account] (spec §2, scope upgrade). */
     suspend fun driveAccess(account: String, granted: Boolean) {
-        val jobs = dao.jobsWaiting(WaitFor.DRIVE_SCOPE)
-            .filter { it.source.account == account || it.target?.account == account }
+        val jobs = dao.jobsWaiting(WaitFor.DRIVE_SCOPE).filter {
+            it.scopeAccount == account || it.source.account == account ||
+                it.target?.account == account
+        }
         val now = clock.millis()
         if (granted) {
             dao.release(jobs.map { it.id }, now)
@@ -363,13 +369,21 @@ class TransferQueue @Inject constructor(
         val jobs = dao.jobs(batchId)
         val done = jobs.count { it.state == TransferState.DONE }
         val failed = jobs.count { it.state == TransferState.FAILED }
+        // A collage can be taken back once it binned its sources: Undo restores them.
+        val trashed = if (batch.op == TransferOp.COLLAGE) {
+            jobs.count { it.op == TransferOp.TRASH && it.state == TransferState.DONE }
+        } else {
+            0
+        }
         return TransferEvent(
             batchId = batchId,
             op = batch.op,
             title = batch.title,
             done = done,
             failed = failed,
-            undoable = done > 0 && batch.undoOf == null && batch.op in UNDOABLE
+            undoable = done > 0 && batch.undoOf == null && (batch.op in UNDOABLE || trashed > 0),
+            isUndo = batch.undoOf != null,
+            trashed = trashed
         )
     }
 

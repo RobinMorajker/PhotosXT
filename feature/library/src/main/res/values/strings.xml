@@ -63,6 +63,7 @@
     <string name="transfer_op_edit">Save edits to %1$s</string>
     <string name="transfer_op_edit_copy">Save an edited copy of %1$s</string>
     <string name="transfer_op_revert">Revert %1$s to the original</string>
+    <string name="transfer_op_collage">Save a collage to %1$s</string>
     <string name="transfer_paused">Paused</string>
     <string name="transfer_waiting">Waiting for your answer</string>
     <string name="transfer_cancelled">Cancelled</string>
@@ -143,6 +144,8 @@
     <string name="library_videos_body">Every video, on the phone and in Drive</string>
     <string name="library_screenshots">Screenshots</string>
     <string name="library_screenshots_body">Every screenshot</string>
+    <string name="library_collages">Collages</string>
+    <string name="library_collages_body">Your collages, to change and save again</string>
     <string name="library_hidden_body">Hidden items and albums, behind your screen lock</string>
     <string name="library_vault_body">Encrypted on this phone, behind your screen lock</string>
     <string name="library_offline">Offline</string>

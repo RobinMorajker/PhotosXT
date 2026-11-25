@@ -29,6 +29,8 @@ import com.photoxt.core.model.ExportOptions
 import com.photoxt.core.model.MediaKind
 import com.photoxt.core.model.SourceType
 import com.photoxt.core.model.TrackedFolderState
+import com.photoxt.core.render.CollageExporter
+import com.photoxt.core.render.CollageRequest
 import com.photoxt.core.render.EditJson
 import com.photoxt.core.render.ExportRequest
 import com.photoxt.core.render.ExportResult
@@ -79,10 +81,14 @@ class Harness : AutoCloseable {
     }
 
     /** A new engine, as a new process would have after the old one was killed. */
-    fun newEngine() = TransferEngine(database, device, files, env, clock, vault, store, exporter)
+    fun newEngine() =
+        TransferEngine(database, device, files, env, clock, vault, store, exporter, collageExporter)
 
     /** Renders an "edit" without a GPU: the original's bytes, reversed, plus the recipe. */
     val exporter = FakeExporter()
+
+    /** Renders a "collage" without a canvas: its photos' bytes one after the other. */
+    val collageExporter = FakeCollageExporter()
 
     var engine = newEngine()
     val queue: TransferQueue
@@ -95,6 +101,9 @@ class Harness : AutoCloseable {
         )
     val transfers: Transfers
         get() = Transfers(database, queue, device, PdfExport(context, device, files), clock)
+
+    val collages: CollageOps
+        get() = CollageOps(database, queue, clock)
 
     val dao get() = database.transferDao()
 
@@ -283,6 +292,24 @@ class FakeExporter : PhotoExporter {
         exported += json
         request.output.writeBytes(request.input.readBytes().reversedArray() + json.toByteArray())
         return ExportResult(request.inputMime, 1, 1, request.output.length())
+    }
+}
+
+/** The collage export stood in for: its photos' bytes, in cell order; [failing] fails its check. */
+class FakeCollageExporter : CollageExporter {
+    val requests = mutableListOf<CollageRequest>()
+    var failing = false
+    var onExport: () -> Unit = {}
+
+    override suspend fun export(request: CollageRequest): ExportResult {
+        requests += request
+        onExport()
+        if (failing) throw java.io.IOException("The collage doesn't decode")
+        val bytes = request.project.mediaIds.flatMap { id ->
+            checkNotNull(request.photos[id]).readBytes().toList()
+        }.toByteArray()
+        request.output.writeBytes(bytes)
+        return ExportResult("image/jpeg", 2, 1, bytes.size.toLong())
     }
 }
 

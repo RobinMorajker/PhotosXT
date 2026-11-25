@@ -59,6 +59,11 @@
         <item quantity="one">Moved %1$,d item to the trash</item>
         <item quantity="other">Moved %1$,d items to the trash</item>
     </plurals>
+    <string name="collage_saved">Collage saved to %1$s</string>
+    <plurals name="collage_saved_trashed">
+        <item quantity="one">Collage saved to %1$s; its photo moved to the trash</item>
+        <item quantity="other">Collage saved to %1$s; its %2$,d photos moved to the trash</item>
+    </plurals>
     <plurals name="transfer_restored">
         <item quantity="one">Restored %1$,d item</item>
         <item quantity="other">Restored %1$,d items</item>

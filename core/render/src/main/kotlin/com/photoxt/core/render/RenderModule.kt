@@ -21,4 +21,9 @@ object RenderModule {
     @Singleton
     fun exporter(@ApplicationContext context: Context, assets: EditAssets): PhotoExporter =
         GlPhotoExporter(context, assets)
+
+    @Provides
+    @Singleton
+    fun collageExporter(@ApplicationContext context: Context, assets: EditAssets): CollageExporter =
+        CanvasCollageExporter(context, assets)
 }
